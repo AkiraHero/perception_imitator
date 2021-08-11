@@ -1,7 +1,3 @@
-"""
-结合10各类别的得分作为D的输入
-"""
-
 import sys
 from torch._C import device
 from torch.types import Device
@@ -19,25 +15,32 @@ import matplotlib.animation as animation
 from IPython.display import HTML
 import numpy as np
 import cv2
-from CNN_Mnist import Net
+from CNN_Cifar import Net
 
 # Set random seed for reproducibility
 torch.manual_seed(0)
 
-def Load_Mnist_ori():
-    train_data = datasets.MNIST( # train_set
+def Load_Cifar_ori():
+    train_data = datasets.CIFAR10( # train_set
         root=dataroot,
         train=True,
-        transform=transforms.ToTensor(),
+        transform=transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+        ]),
         download=True   # 首次使用设为True来下载数据集，之后设为False
     )
-    test_data = datasets.MNIST( # test_set
-        root=dataroot,
-        train=False,
-        transform=transforms.ToTensor(),
-        download=True
-    )
-    dataset = train_data+test_data
+    # test_data = datasets.CIFAR10( # test_set
+    #     root=dataroot,
+    #     train=False,
+    #     transform=transforms.Compose([
+    #         transforms.ToTensor(),
+    #         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+    #     ]),
+    #     download=True
+    # )
+    # dataset = train_data+test_data
+    dataset = train_data
     print(f'Total Size of Dataset: {len(dataset)}')
 
     dataloader = DataLoader(
@@ -49,28 +52,29 @@ def Load_Mnist_ori():
 
     return dataloader
 
-def Load_Mnist_proc(): # 为了便于将图片压缩，直接使用datasets.MNIST中的transform
-    train_data = datasets.MNIST(
+def Load_Cifar_proc(): # 为了便于将图片压缩，直接使用datasets.MNIST中的transform
+    train_data = datasets.CIFAR10(
         root=dataroot,
         train=True,
         transform=transforms.Compose([
             transforms.Resize(image_size),
             transforms.ToTensor(),
-            transforms.Normalize((0.5,), (0.5,))
+            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
         ]),
         download=True
         )
-    test_data = datasets.MNIST(
-        root=dataroot,
-        train=False,
-        transform=transforms.Compose([
-            transforms.Resize(image_size),
-            transforms.ToTensor(),
-            transforms.Normalize((0.5,), (0.5,))
-        ])
-    )
-    dataset = train_data+test_data
-    # print(f'Total Size of Dataset: {len(dataset)}')
+    # test_data = datasets.CIFAR10(
+    #     root=dataroot,
+    #     train=False,
+    #     transform=transforms.Compose([
+    #         transforms.Resize(image_size),
+    #         transforms.ToTensor(),
+    #         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+    #     ])
+    # )
+    # dataset = train_data+test_data
+    dataset = train_data
+    print(f'Total Size of Dataset: {len(dataset)}')
 
     dataloader = DataLoader(
         dataset=dataset,
@@ -84,9 +88,9 @@ def Load_Mnist_proc(): # 为了便于将图片压缩，直接使用datasets.MNIS
 def Change_data(data):  # 对真值图片和标签进行处理(之前几版代码见pytorch-dcgan-mnist)
     pic_len = data[0].shape[1]*data[0].shape[2]*data[0].shape[3]    # 获取每一张图片压缩后的总像素个数
     
-    img_Din = data[0].numpy().squeeze().reshape((data[0].shape[0],1,pic_len))   # 变为batch_size*1*16
+    img_Din = data[0].numpy().squeeze().reshape((data[0].shape[0],1,pic_len))   # 变为batch_size*1*length
     label_Din = data[1].unsqueeze(-1).unsqueeze(-1).numpy()   # 获得对应label
-    img_Din = torch.from_numpy(np.append(img_Din, label_Din, axis=2)) # 将label加入得到batch_size*1*17，并转为tensor类型
+    img_Din = torch.from_numpy(np.append(img_Din, label_Din, axis=2)) # 将label加入得到batch_size*1*(length+10)，并转为tensor类型
     img_Din = img_Din.to(torch.float32) # 将double精度转为float适用于全连接层输入类型
     # print(img_Din.shape)
 
@@ -95,21 +99,21 @@ def Change_data(data):  # 对真值图片和标签进行处理(之前几版代�
 # def Combine_data(data, label):     # 将处理后图片与经过G得到的类别组合成可以输入D的数据
 #     pic_len = data.shape[1]*data.shape[2]*data.shape[3]    # 获取每一张图片压缩后的总像素个数
         
-#     img_Din = data.numpy().squeeze().reshape((data.shape[0],1,pic_len))   # 变为batch_size*1*16
+#     img_Din = data.numpy().squeeze().reshape((data.shape[0],1,pic_len))   # 变为batch_size*1*length
 #     # label_Din = label.cpu().unsqueeze(-1).unsqueeze(-1).numpy()   # 获得对应label
 #     label_Din = label.cpu().unsqueeze(-2).numpy()   # 获得对应label,对于增添10各类别概率仅需要加一个维度即可
-#     img_Din = torch.from_numpy(np.append(img_Din, label_Din, axis=2)) # 将label加入得到batch_size*1*17，并转为tensor类型
+#     img_Din = torch.from_numpy(np.append(img_Din, label_Din, axis=2)) # 将label加入得到batch_size*1*(length+10)
 #     img_Din = img_Din.to(torch.float32) # 将double精度转为float适用于全连接层输入类型
 
 #     return img_Din
     
 def Combine_data(data, label):     # 直接对tensor类型进行处理，这样可以保存反传的梯度，将处理后图片与经过G得到的类别组合成可以输入D的数据
-    pic_len = data.shape[1]*data.shape[2]*data.shape[3]    # 获取每一张图片压缩后的总像素个数
+    pic_len = data.shape[1]*data.shape[2]*data.shape[3]    # 获取每一张图片压缩后的总像素个数（包括每个通道）= 通道数*宽*高
         
     img_Din = data.squeeze().reshape((data.shape[0],1,pic_len))   # 变为batch_size*1*len
     # label_Din = label.cpu().unsqueeze(-1).unsqueeze(-1).numpy()   # 获得对应label
     label_Din = label.cpu().unsqueeze(-2)   # 获得对应label,对于增添10各类别概率仅需要加一个维度即可
-    img_Din = torch.cat((img_Din, label_Din), 2)    # 将label余图像直接tensor合并，得到batch_size*1*(len+10)，主要为了是的tensor能够用保留反传梯度
+    img_Din = torch.cat((img_Din, label_Din), 2)    # 将label直接与图像tensor合并，得到batch_size*1*(len+10)
     # img_Din = torch.from_numpy(np.append(img_Din, label_Din, axis=2)) # 将label加入得到batch_size*1*(len+10)
     # img_Din = img_Din.to(torch.float32) # 将double精度转为float适用于全连接层输入类型
 
@@ -138,10 +142,11 @@ class Discriminator_MLP(nn.Module):
     def __init__(self, ngpu, input_size):
         super(Discriminator_MLP, self).__init__()
         self.ngpu = ngpu
-        # 初始化四层神经网络 两个全连接的隐藏层，一个输出层
-        self.fc1 = nn.Linear(input_size,200) # 第一个隐含层
-        self.fc2 = nn.Linear(200,100) # 第二个隐含层
-        self.fc3 = nn.Linear(100,1)  # 输出层
+        # 初始化四层神经网络 三个全连接的隐藏层，一个输出层
+        self.fc1 = nn.Linear(input_size,600) # 第一个隐含层
+        self.fc2 = nn.Linear(600,600) # 第二个隐含层
+        self.fc3 = nn.Linear(600,200)  # 输出层
+        self.fc4 = nn.Linear(200,1)  # 输出层
         self.dropout = nn.Dropout(p=0.5)    # Dropout暂时先不打开
 
     def forward(self, din):
@@ -152,34 +157,41 @@ class Discriminator_MLP(nn.Module):
         dout = self.fc2(dout)
         dout = F.relu(dout)
         dout = self.fc3(dout)
+        dout = F.relu(dout)
+        dout = self.fc4(dout)
         dout = F.sigmoid(dout)
         # dout = F.softmax(dout, dim=1) # 输出层使用 softmax 激活函数,这里输出层为1,因此不需要softmax,使用sigmoid
 
         return dout
 
+def adjust_learning_rate(optimizer, epoch, lr):
+    """Sets the learning rate to the initial LR decayed by 2 every 20 epochs"""
+    lr = lr * (0.5 ** (epoch // 30))
+    for param_group in optimizer.param_groups:
+        param_group['lr'] = lr
 
 if __name__ == '__main__':
     dataroot = "/home/PJLAB/sunyiyang/桌面/PJlab/GAN_Exp/Datasets"  # Root directory for dataset
     workers = 10    # Number of workers for dataloader
     batch_size = 100    # Batch size during training
-    image_size = 14  # 可以根据自己的需求改变，这里把图像缩成14*14个像素，Spatial size of training images. All images will be resized to this size using a transformer.
+    image_size = 12  # 可以根据自己的需求改变，这里把图像缩成16个像素，Spatial size of training images. All images will be resized to this size using a transformer.
     class_size = 10  # 分为十类
-    input_size = image_size*image_size + class_size
+    input_size = 3*image_size*image_size + class_size   # 需要考虑通道数3
     nc = 1          # Number of channels in the training images. For color images this is 3
-    num_epochs = 50 # Number of training epochs
-    lr = 0.0002     # Learning rate for optimizers
-    beta1 = 0.3     # Beta1 hyperparam for Adam optimizers
+    num_epochs = 70 # Number of training epochs
+    lr = 0.0002  # Learning rate for optimizers
+    beta1 = 0.5     # Beta1 hyperparam for Adam optimizers
     ngpu = 1        # Number of GPUs available. Use 0 for CPU mode.
     
     DEVICE = torch.device('cuda:0' if (torch.cuda.is_available() and ngpu > 0) else 'cpu')
     
     # 加载数据
-    dataloader_ori = Load_Mnist_ori()
-    dataloader_proc = Load_Mnist_proc()
+    dataloader_ori = Load_Cifar_ori()
+    dataloader_proc = Load_Cifar_proc()
 
     # 加载Target CNN模型
     Tar_CNN= Net().to(device=DEVICE)
-    Tar_CNN.load_state_dict(torch.load('./results/Mnist/param_minist_5.pt'))
+    Tar_CNN.load_state_dict(torch.load('./results/Cifar/param_minist_10.pt'))
 
     # 建立生成器、判别器
     netG = Net().to(device=DEVICE)   # Create the generator
@@ -214,6 +226,8 @@ if __name__ == '__main__':
     # For each epoch
     for epoch in range(num_epochs):
         beg_time = time.time()
+        adjust_learning_rate(optimizerG, epoch, lr)
+        adjust_learning_rate(optimizerDMLP, epoch, lr)
         # For each batch in the dataloader
         for i, data in enumerate(zip(dataloader_ori, dataloader_proc)): # dataloader_ori存放原图，用于训练G；dataloader_proc存放缩减图，处理后用于训练D
             ############################
@@ -301,12 +315,12 @@ if __name__ == '__main__':
 
             # Save the Best Model
             if errG < loss_tep1 and epoch > 10:
-                torch.save(netG.state_dict(), './results/Mnist/model_errG.pt')
+                torch.save(netG.state_dict(), './results/Cifar/model_errG.pt')
                 loss_tep1 = errG
             if epoch%10 == 0:  
-                torch.save(netG.state_dict(), './results/Mnist/model_%d.pt'%(epoch))
+                torch.save(netG.state_dict(), './results/Cifar/model_%d.pt'%(epoch))
 
-    torch.save(netG.state_dict(), './results/Mnist/model_final.pt')
+    torch.save(netG.state_dict(), './results/Cifar/model_final.pt')
 
     plt.figure(figsize=(20, 10))
     plt.title("Generator and Discriminator Loss During Training")
