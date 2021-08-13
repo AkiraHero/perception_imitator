@@ -1,5 +1,5 @@
 '''
-结合具体类别作为D的输入，但是梯度会无法反传，因此舍弃该方法
+v2:用于测试VAE_GAN_Mnist_v4
 '''
 
 from contextlib import nullcontext
@@ -15,6 +15,12 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from torch.autograd import Variable
 import numpy as np
+
+from VAE_GAN_Mnist_v5 import VAE
+
+from plot import plot_result
+
+torch.manual_seed(0)
 
 # 加载mnist数据集
 def Load_Mnist():
@@ -124,17 +130,21 @@ def train(epoch, train_counter, train_losses, train_accs):
     return train_counter, train_losses, train_accs
 
 # 模型测试
-def test():
+def test(net):
     print('\n'+"Begin Testing"+'\n')
     net.eval()
     correct = 0
     total = 0
     test_loss = 0
+    accuracy = []
     with torch.no_grad():
         for data in test_loader:
             images, labels = data
             images, labels = Variable(images).cuda(), Variable(labels).cuda()
-            outputs = net(images)   # 返回的一个batch中每张图像对于10个类别的得分
+            if net == SGAN:
+                outputs,_,_ = net(images)   # 返回的一个batch中每张图像对于10个类别的得分
+            elif net == Target_model:
+                outputs = net(images)
             loss = criterion(outputs, labels) # 得到损失函数
             test_loss += loss.item()
             _, predicted = torch.max(outputs.data, 1)   # torch.max(a,1)返回每一行中最大值的那个元素，且返回其索引
@@ -152,7 +162,10 @@ def test():
         for data in test_loader:
             images, labels = data
             images, labels = Variable(images).cuda(), Variable(labels).cuda()
-            outputs = net(images)
+            if net == SGAN:
+                outputs,_,_ = net(images)   # 返回的一个batch中每张图像对于10个类别的得分
+            elif net == Target_model:
+                outputs = net(images)
             _, predicted = torch.max(outputs, 1)
             c = (predicted == labels).squeeze()
             for i in range(100):
@@ -161,7 +174,10 @@ def test():
                 class_total[label] += 1
     for i in range(10):
         print('Accuracy of %s : %2.2f %%' % (i, 100 * class_correct[i] / class_total[i]))
+        accuracy.append(class_correct[i] / class_total[i])
     print('---------------------------------------------------------------')
+
+    return accuracy
 
 
 
@@ -191,11 +207,12 @@ if __name__ == '__main__':
     test_counter = [i*len(train_loader.dataset) for i in range(EPOCH)]
 
     # 初始化网络结构
-    # net = Net().to(device=DEVICE)
-    net = Net().to(device=DEVICE)
+    Target_model = Net().to(device=DEVICE)
+    SGAN = VAE().to(device=DEVICE)
+
     # 定义损失函数和优化函数
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(net.parameters(), lr=LR)
+    # optimizer = optim.Adam(net.parameters(), lr=LR)
 
     # # Train
     # for epoch in range(1, EPOCH + 1):
@@ -211,7 +228,9 @@ if __name__ == '__main__':
     # plt.show()
 
     # # Test
-    # net.load_state_dict(torch.load('./results/Mnist/param_minist_5.pt'))
-    # test()
-    net.load_state_dict(torch.load('./results/Mnist/model_final.pt'))
-    test()
+    Target_model.load_state_dict(torch.load('./results/Mnist/param_minist_5.pt'))
+    accuracy_target = test(Target_model)
+    SGAN.load_state_dict(torch.load('./results/VAE_Mnist2/model_final.pt'))
+    accuracy_SGAN = test(SGAN)
+    
+    plot_result(accuracy_target, accuracy_SGAN)

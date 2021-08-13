@@ -1,4 +1,8 @@
+2021.8.12
 1、CNN_xxx.py为Target Model框架以及载测试集的测试代码；VAE_Minist.py为便于方便验证改进VAE作为Generator的测试代码；
 2、GAN_xxx_10.py为CNN作为Generator的GAN网络；
 3、VAE_GAN_Mnist_Vx.py为VAE作为Generator的GAN网络：
 v2为目前能正常使用版本；v3为参考WGAN网络训练方式尝试能够得到更好的G，但目前效果比v2更差。
+————————————————————————————————————————————————————————————————————————————————————
+2021.8.13
+1、最新使用VAE_GAN_Mnist_v5.py训练；VAE_Mnist_v2.py测试

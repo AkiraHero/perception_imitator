@@ -1,6 +1,6 @@
 '''
-引入了WGAN的思想，但是G难以收敛
 在原先GAN的基础上引入VAE的思想，此代码尝试VAE：从 源图像 编码-> 隐向量 采样解码-> 10个类别得分
+v4:在VAE中仍然应用CNN来提取特征,出现一定问题
 '''
 from pickle import DICT
 import sys
@@ -39,7 +39,7 @@ def weights_init(m):
         nn.init.normal_(m.weight.data, 1.0, 0.02)
         nn.init.constant_(m.bias.data, 0)
 
-# 定义画图工具
+# 定义画图工具,实际没有用到
 def show_images(images, name): 
     plt.rcParams['figure.figsize'] = (10.0, 8.0) # 设置画图的尺寸
     plt.rcParams['image.interpolation'] = 'nearest'
@@ -147,16 +147,23 @@ class VAE(nn.Module):
     def __init__(self, ngpu):
         super(VAE, self).__init__()
         self.ngpu = ngpu
-        self.fc1 = nn.Linear(784, 400)
-        self.fc21 = nn.Linear(400, 20) # mean
-        self.fc22 = nn.Linear(400, 20) # var
-        self.fc3 = nn.Linear(20, 200)
-        self.fc4 = nn.Linear(200, 100)
-        self.fc5 = nn.Linear(100, 10)
+        self.conv1 = nn.Conv2d(1, 6, 3, 1, 2)
+        self.conv2 = nn.Conv2d(6, 16, 5)
+        self.fc1 = nn.Linear(16 * 5 * 5, 120)
+        self.fc2 = nn.Linear(120, 84)
+        self.fc21 = nn.Linear(84, 100) # mean
+        self.fc22 = nn.Linear(84, 100) # var
+        self.fc3 = nn.Linear(100, 200)
+        self.fc4 = nn.Linear(200, 200)
+        self.fc5 = nn.Linear(84, 10)
 
     def encode(self, x):    # 编码层
+        x = F.max_pool2d(F.relu(self.conv1(x)), (2, 2))
+        x = F.max_pool2d(F.relu(self.conv2(x)), 2)
+        x = x.view(-1, self.num_flat_features(x))
         h1 = F.relu(self.fc1(x))
-        return self.fc21(h1), self.fc22(h1)
+        h2 = F.relu(self.fc2(h1))
+        return self.fc5(h2), self.fc22(h2)
 
     def reparametrize(self, mu, logvar):    # 最后得到的是u(x)+sigma(x)*N(0,I)
         std = logvar.mul(0.5).exp_() # e**(x/2)
@@ -172,19 +179,29 @@ class VAE(nn.Module):
         h4 = F.relu(self.fc4(h3))
         return self.fc5(h4)
 
+    def num_flat_features(self, x):
+        size = x.size()[1:]  # all dimensions except the batch dimension
+        num_features = 1
+        for s in size:
+            num_features *= s
+        return num_features
+
     def forward(self, x):
         mu, logvar = self.encode(x) # 编码
-        z = self.reparametrize(mu, logvar) # 重新参数化成正态分布
-        return self.decode(z), mu, logvar # 解码，同时输出均值方差
+        # z = self.reparametrize(mu, logvar) # 重新参数化成正态分布
+        # return self.decode(z), mu, logvar # 解码，同时输出均值方差
+        return mu, mu, logvar
 
 class Discriminator_MLP(nn.Module):
     def __init__(self, ngpu, input_size):
         super(Discriminator_MLP, self).__init__()
         self.ngpu = ngpu
         # 初始化四层神经网络 两个全连接的隐藏层，一个输出层
-        self.fc1 = nn.Linear(input_size,400) # 第一个隐含层
-        self.fc2 = nn.Linear(400,200) # 第二个隐含层
-        self.fc3 = nn.Linear(200,1)  # 输出层
+        self.fc1 = nn.Linear(input_size,200) # 第一个隐含层
+        self.fc2 = nn.Linear(200,100) # 第二个隐含层
+        # self.fc3 = nn.Linear(400,200) # 第二个隐含层
+        self.fc4 = nn.Linear(100,1)  # 输出层
+        
         self.dropout = nn.Dropout(p=0.5)    # Dropout暂时先不打开
 
     def forward(self, din):
@@ -194,8 +211,10 @@ class Discriminator_MLP(nn.Module):
         dout = F.relu(dout)  # 使用 relu 激活函数
         dout = self.fc2(dout)
         dout = F.relu(dout)
-        dout = self.fc3(dout)
-        # dout = F.sigmoid(dout)
+        # dout = self.fc3(dout)
+        # dout = F.relu(dout)
+        dout = self.fc4(dout)
+        dout = F.sigmoid(dout)
         # dout = F.softmax(dout, dim=1) # 输出层使用 softmax 激活函数,这里输出层为1,因此不需要softmax,使用sigmoid
 
         return dout
@@ -214,11 +233,11 @@ def generator_loss(recon_x, x, mu, logvar):
     loss0 = ((recon_x - 1) ** 2).mean()
     # KL divergence
     KLD_element = mu.pow(2).add_(logvar.exp()).mul_(-1).add_(1).add_(logvar)
-    KLD = torch.sum(KLD_element).mul_(-0.5)
+    KLD = torch.sum(KLD_element)
     return loss0+KLD
 
 def get_optimizer(net):
-    optimizer = torch.optim.Adam(net.parameters(), lr=0.0002, betas=(0.4, 0.999))
+    optimizer = torch.optim.Adam(net.parameters(), lr=0.00015, betas=(0.5, 0.999))
     return optimizer
 
 if __name__ == '__main__':
@@ -230,7 +249,7 @@ if __name__ == '__main__':
     class_size = 10  # 分为十类
     input_size = image_size*image_size + class_size
     nc = 1          # Number of channels in the training images. For color images this is 3
-    num_epochs = 100 # Number of training epochs
+    num_epochs = 50 # Number of training epochs
     lr = 0.0002     # Learning rate for optimizers
     beta1 = 0.3     # Beta1 hyperparam for Adam optimizers
     ngpu = 1        # Number of GPUs available. Use 0 for CPU mode.
@@ -255,20 +274,20 @@ if __name__ == '__main__':
     netDMLP.apply(weights_init)
 
     # 初始化优化器
-    # G_optimizer = get_optimizer(netG)
-    # D_optimizer = get_optimizer(netDMLP)
+    G_optimizer = get_optimizer(netG)
+    D_optimizer = get_optimizer(netDMLP)
     
     # 初始化Optimizers和损失函数
     criterion = nn.BCELoss()    # Initialize BCELoss function
     # 方便建立真值，Establish convention for real and fake labels during training
-    real_label = 1 
+    real_label = 1
     fake_label = 0.
     True_label = torch.full((batch_size,), real_label, dtype=torch.float, device=DEVICE)
     Fake_label = torch.full((batch_size,), fake_label, dtype=torch.float, device=DEVICE)
 
     # # Setup Adam optimizers for both G and D
-    G_optimizer = torch.optim.Adam(netG.parameters(), lr=lr, betas=(beta1, 0.999))
-    D_optimizer = torch.optim.Adam(netDMLP.parameters(), lr=lr, betas=(beta1, 0.999))
+    # optimizerG = torch.optim.Adam(netG.parameters(), lr=lr, betas=(beta1, 0.999))
+    # optimizerDMLP = torch.optim.Adam(netDMLP.parameters(), lr=lr, betas=(beta1, 0.999))
 
     # Training Loop
     # Lists to keep track of progress
@@ -280,8 +299,8 @@ if __name__ == '__main__':
     loss_tep1 = 10
     loss_tep2 = 10
     iter_count = 0
-    min = -0.05
-    max = 0.05
+    # min = -0.05
+    # max = 0.05
 
     # 开始训练
     print("Starting Training Loop...")
@@ -289,7 +308,6 @@ if __name__ == '__main__':
     for epoch in range(num_epochs):
         beg_time = time.time()
         for i, data in enumerate(zip(dataloader1, dataloader2)): # dataloader_ori存放原图
-
             ############################
             # (1) Update D network: maximize log(D(x)) + log(1 - D(G(z)))
             ###########################
@@ -304,11 +322,11 @@ if __name__ == '__main__':
             # Forward pass real batch through D
             logits_real = netDMLP(real_cpu).view(-1)
 
-            # d_total_error_1 = criterion(logits_real, True_label)
-            # d_total_error_1.backward()
+            d_total_error_1 = criterion(logits_real, True_label)
+            d_total_error_1.backward()
 
             # Train with all-fake batch
-            G_input = data[0][0].view(batch_size, -1).to(device=DEVICE)
+            G_input = data[0][0].to(device=DEVICE)
             # Generate fake image batch with G
             G_score, mu, logvar = netG(G_input)    # 通过VAE得到每一类的得分
             # _, G_score = torch.max(G_score.data, 1)
@@ -317,20 +335,20 @@ if __name__ == '__main__':
             # Classify all fake batch with D
             logits_fake = netDMLP(fake.detach()).view(-1)
 
-            # d_total_error_2 = criterion(logits_fake, Fake_label)
-            # d_total_error_2.backward()
+            d_total_error_2 = criterion(logits_fake, Fake_label)
+            d_total_error_2.backward()
             
-            d_total_error = discriminator_loss(logits_real, logits_fake) # 判别器的 loss
-            # d_total_error = d_total_error_1 + d_total_error_2
+            # d_total_error = discriminator_loss(logits_real, logits_fake) # 判别器的 loss
+            d_total_error = d_total_error_1 + d_total_error_2
 
             # D_optimizer.zero_grad()
             # netDMLP.zero_grad()
-            d_total_error.backward()
+            # d_total_error.backward()
             D_optimizer.step() # 优化判别网络
 
             # # 用来限制D网络参数范围
-            for p in netDMLP.parameters():
-                p.data.clamp_(min, max)
+            # for p in netDMLP.parameters():
+            #     p.data.clamp_(min, max)
 
 
             ############################
@@ -342,9 +360,12 @@ if __name__ == '__main__':
             # fake = Combine_data(data[1][0], G_score).to(device=DEVICE)
             gen_logits_fake = netDMLP(fake).view(-1)
 
-            # g_error = criterion(gen_logits_fake, True_label)
+            g_error = criterion(gen_logits_fake, True_label)
+            # KLD_element = mu.pow(2).add_(logvar.exp()).mul_(-1).add_(1).add_(logvar)
+            # KLD = F.sigmoid(torch.sum(KLD_element))  # 可能限制一下KLD效果会变好
+            # g_error = g_error.add_(KLD)
 
-            g_error = generator_loss(gen_logits_fake, G_input, mu, logvar)
+            # g_error = generator_loss(gen_logits_fake, G_input, mu, logvar)
             # G_optimizer.zero_grad()
 
             # netG.zero_grad()

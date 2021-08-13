@@ -1,7 +1,7 @@
-"""
-结合10各类别的得分作为D的输入
-"""
-
+'''
+在原先GAN的基础上引入VAE的思想，此代码尝试VAE：从 源图像 编码-> 隐向量 采样解码-> 10个类别得分
+v5:直接载GAN_Mnist_10上进行改动
+'''
 import sys
 from torch._C import device
 from torch.types import Device
@@ -12,6 +12,7 @@ import time
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.autograd import Variable
 from torch.utils.data import DataLoader
 from torchvision import utils, datasets, transforms
 import matplotlib.pyplot as plt
@@ -19,7 +20,7 @@ import matplotlib.animation as animation
 from IPython.display import HTML
 import numpy as np
 import cv2
-from CNN_Mnist import Net
+from  CNN_Mnist import Net
 
 # Set random seed for reproducibility
 torch.manual_seed(0)
@@ -31,13 +32,14 @@ def Load_Mnist_ori():
         transform=transforms.ToTensor(),
         download=True   # 首次使用设为True来下载数据集，之后设为False
     )
-    test_data = datasets.MNIST( # test_set
-        root=dataroot,
-        train=False,
-        transform=transforms.ToTensor(),
-        download=True
-    )
-    dataset = train_data+test_data
+    # test_data = datasets.MNIST( # test_set
+    #     root=dataroot,
+    #     train=False,
+    #     transform=transforms.ToTensor(),
+    #     download=True
+    # )
+    # dataset = train_data+test_data
+    dataset = train_data
     print(f'Total Size of Dataset: {len(dataset)}')
 
     dataloader = DataLoader(
@@ -60,16 +62,17 @@ def Load_Mnist_proc(): # 为了便于将图片压缩，直接使用datasets.MNIS
         ]),
         download=True
         )
-    test_data = datasets.MNIST(
-        root=dataroot,
-        train=False,
-        transform=transforms.Compose([
-            transforms.Resize(image_size),
-            transforms.ToTensor(),
-            transforms.Normalize((0.5,), (0.5,))
-        ])
-    )
-    dataset = train_data+test_data
+    # test_data = datasets.MNIST(
+    #     root=dataroot,
+    #     train=False,
+    #     transform=transforms.Compose([
+    #         transforms.Resize(image_size),
+    #         transforms.ToTensor(),
+    #         transforms.Normalize((0.5,), (0.5,))
+    #     ])
+    # )
+    # dataset = train_data+test_data
+    dataset = train_data
     # print(f'Total Size of Dataset: {len(dataset)}')
 
     dataloader = DataLoader(
@@ -124,15 +127,54 @@ def weights_init(m):
         nn.init.constant_(m.bias.data, 0)
 
 # 生成器结构（暂时直接从CNN_Mnist中调用Net，不用这个）
-class Generator(nn.Module):
-    def __init__(self, ngpu):
-        super(Generator, self).__init__()
-        self.ngpu = ngpu
-        self.main = nn.Sequential(
-        )
+class VAE(nn.Module):
 
-    def forward(self, input):
-        return self.main(input)
+    def __init__(self):
+        super(VAE, self).__init__()
+        # 1 input image channel, 6 output channels, 5x5 square convolution
+        # kernel
+        self.conv1 = nn.Conv2d(1, 6, 3, 1, 2)
+        self.conv2 = nn.Conv2d(6, 16, 5)
+        # an affine operation: y = Wx + b
+        self.fc1 = nn.Linear(16 * 5 * 5, 120)
+        self.fc21 = nn.Linear(120, 20)
+        self.fc22 = nn.Linear(120, 20)
+        self.fc3 = nn.Linear(20, 100)
+        self.fc4 = nn.Linear(100, 10)
+
+    def forward(self, x):
+        # Max pooling over a (2, 2) window
+        x = F.max_pool2d(F.relu(self.conv1(x)), (2, 2))
+        # If the size is a square you can only specify a single number
+        x = F.max_pool2d(F.relu(self.conv2(x)), 2)
+        x = x.view(-1, self.num_flat_features(x))
+        x = F.relu(self.fc1(x))
+
+        mu = self.fc21(x)
+        logvar = self.fc22(x)
+
+        z = self.reparametrize(mu,logvar)
+
+        x = F.relu(self.fc3(z))     
+        x = self.fc4(x)# x为10个类别的得分
+        # x = F.sigmoid(x)
+        return x, mu, logvar
+
+    def num_flat_features(self, x):
+        size = x.size()[1:]  # all dimensions except the batch dimension
+        num_features = 1
+        for s in size:
+            num_features *= s
+        return num_features
+
+    def reparametrize(self, mu, logvar):    # 最后得到的是u(x)+sigma(x)*N(0,I)
+        std = logvar.mul(0.5).exp_() # e**(x/2)
+        eps = torch.FloatTensor(std.size()).normal_().cuda()   # 用正态分布填充eps
+        # if torch.cuda.is_available():
+        #     eps = Variable(eps.cuda())
+        # else:
+        #     eps = Variable(eps)
+        return eps.mul(std).add_(mu)
 
 class Discriminator_MLP(nn.Module):
     def __init__(self, ngpu, input_size):
@@ -182,7 +224,7 @@ if __name__ == '__main__':
     Tar_CNN.load_state_dict(torch.load('./results/Mnist/param_minist_5.pt'))
 
     # 建立生成器、判别器
-    netG = Net().to(device=DEVICE)   # Create the generator
+    netG = VAE().to(device=DEVICE)   # Create the generator
     if DEVICE.type == 'cuda' and ngpu > 1:  # Handle multi-gpu if desired
         netG = nn.DataParallel(netG, list(range(ngpu)))
     netG.apply(weights_init)    # Apply the weights_init function to randomly initialize all weights to mean=0, stdev=0.2.
@@ -244,7 +286,7 @@ if __name__ == '__main__':
             # Train with all-fake batch
             G_input = data[0][0].to(device=DEVICE)
             # Generate fake image batch with G
-            G_score = netG(G_input)    # 得到每一类的得分
+            G_score, mu, logvar = netG(G_input)    # 得到每一类的得分
             # _, G_score = torch.max(G_score.data, 1)
             # 处理压缩图和G生成类别得到可用于输入D的数据
             fake = Combine_data(data[1][0], G_score).to(device=DEVICE)
@@ -270,9 +312,16 @@ if __name__ == '__main__':
             # Since we just updated D, perform another forward pass of all-fake batch through D
             output = netDMLP(fake).view(-1)
             # Calculate G's loss based on this output
-            errG = criterion(output, label)     # 希望生成的假数据能让D判成1
+            errG1 = criterion(output, label)     # 希望生成的假数据能让D判成1
             # Calculate gradients for G
+            # errG.backward()
+
+            KLD_element = mu.pow(2).add_(logvar.exp()).mul_(-1).add_(1).add_(logvar)
+            errG_KLD = F.sigmoid(torch.sum(KLD_element))
+
+            errG = errG1.add_(errG_KLD)
             errG.backward()
+
             D_G_z2 = output.mean().item()
             # Update G
             optimizerG.step()
@@ -301,12 +350,12 @@ if __name__ == '__main__':
 
             # Save the Best Model
             if errG < loss_tep1 and epoch > 10:
-                torch.save(netG.state_dict(), './results/Mnist/model_errG.pt')
+                torch.save(netG.state_dict(), './results/VAE_Mnist2/model_errG.pt')
                 loss_tep1 = errG
             if epoch%10 == 0:  
-                torch.save(netG.state_dict(), './results/Mnist/model_%d.pt'%(epoch))
+                torch.save(netG.state_dict(), './results/VAE_Mnist2/model_%d.pt'%(epoch))
 
-    torch.save(netG.state_dict(), './results/Mnist/model_final.pt')
+    torch.save(netG.state_dict(), './results/VAE_Mnist2/model_final.pt')
 
     plt.figure(figsize=(20, 10))
     plt.title("Generator and Discriminator Loss During Training")

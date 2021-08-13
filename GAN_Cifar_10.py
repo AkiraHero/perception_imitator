@@ -30,17 +30,16 @@ def Load_Cifar_ori():
         ]),
         download=True   # 首次使用设为True来下载数据集，之后设为False
     )
-    # test_data = datasets.CIFAR10( # test_set
-    #     root=dataroot,
-    #     train=False,
-    #     transform=transforms.Compose([
-    #         transforms.ToTensor(),
-    #         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-    #     ]),
-    #     download=True
-    # )
-    # dataset = train_data+test_data
-    dataset = train_data
+    test_data = datasets.CIFAR10( # test_set
+        root=dataroot,
+        train=False,
+        transform=transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+        ]),
+        download=True
+    )
+    dataset = train_data+test_data
     print(f'Total Size of Dataset: {len(dataset)}')
 
     dataloader = DataLoader(
@@ -63,18 +62,17 @@ def Load_Cifar_proc(): # 为了便于将图片压缩，直接使用datasets.MNIS
         ]),
         download=True
         )
-    # test_data = datasets.CIFAR10(
-    #     root=dataroot,
-    #     train=False,
-    #     transform=transforms.Compose([
-    #         transforms.Resize(image_size),
-    #         transforms.ToTensor(),
-    #         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-    #     ])
-    # )
-    # dataset = train_data+test_data
-    dataset = train_data
-    print(f'Total Size of Dataset: {len(dataset)}')
+    test_data = datasets.CIFAR10(
+        root=dataroot,
+        train=False,
+        transform=transforms.Compose([
+            transforms.Resize(image_size),
+            transforms.ToTensor(),
+            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+        ])
+    )
+    dataset = train_data+test_data
+    # print(f'Total Size of Dataset: {len(dataset)}')
 
     dataloader = DataLoader(
         dataset=dataset,

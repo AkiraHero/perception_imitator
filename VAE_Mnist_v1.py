@@ -1,5 +1,5 @@
 '''
-结合具体类别作为D的输入，但是梯度会无法反传，因此舍弃该方法
+v1:用于测试VAE_GAN_Mnist_v1~3
 '''
 
 from contextlib import nullcontext
@@ -15,6 +15,8 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from torch.autograd import Variable
 import numpy as np
+
+from VAE_GAN_Mnist_v4 import VAE
 
 # 加载mnist数据集
 def Load_Mnist():
@@ -134,7 +136,10 @@ def test():
         for data in test_loader:
             images, labels = data
             images, labels = Variable(images).cuda(), Variable(labels).cuda()
-            outputs = net(images)   # 返回的一个batch中每张图像对于10个类别的得分
+
+            images = images.view(BATCH_SIZE,-1) # 针对VAE网络结构时
+
+            outputs,_,_ = net(images)   # 返回的一个batch中每张图像对于10个类别的得分
             loss = criterion(outputs, labels) # 得到损失函数
             test_loss += loss.item()
             _, predicted = torch.max(outputs.data, 1)   # torch.max(a,1)返回每一行中最大值的那个元素，且返回其索引
@@ -152,7 +157,10 @@ def test():
         for data in test_loader:
             images, labels = data
             images, labels = Variable(images).cuda(), Variable(labels).cuda()
-            outputs = net(images)
+
+            images = images.view(BATCH_SIZE,-1) # 针对VAE网络结构时
+
+            outputs,_,_ = net(images)
             _, predicted = torch.max(outputs, 1)
             c = (predicted == labels).squeeze()
             for i in range(100):
@@ -192,7 +200,7 @@ if __name__ == '__main__':
 
     # 初始化网络结构
     # net = Net().to(device=DEVICE)
-    net = Net().to(device=DEVICE)
+    net = VAE(ngpu=1).to(device=DEVICE)
     # 定义损失函数和优化函数
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(net.parameters(), lr=LR)
@@ -213,5 +221,5 @@ if __name__ == '__main__':
     # # Test
     # net.load_state_dict(torch.load('./results/Mnist/param_minist_5.pt'))
     # test()
-    net.load_state_dict(torch.load('./results/Mnist/model_final.pt'))
+    net.load_state_dict(torch.load('./results/VAE_Mnist/model_errG.pt'))
     test()
