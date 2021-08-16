@@ -32,14 +32,13 @@ def Load_Mnist_ori():
         transform=transforms.ToTensor(),
         download=True   # 首次使用设为True来下载数据集，之后设为False
     )
-    # test_data = datasets.MNIST( # test_set
-    #     root=dataroot,
-    #     train=False,
-    #     transform=transforms.ToTensor(),
-    #     download=True
-    # )
-    # dataset = train_data+test_data
-    dataset = train_data
+    test_data = datasets.MNIST( # test_set
+        root=dataroot,
+        train=False,
+        transform=transforms.ToTensor(),
+        download=True
+    )
+    dataset = train_data+test_data
     print(f'Total Size of Dataset: {len(dataset)}')
 
     dataloader = DataLoader(
@@ -62,17 +61,16 @@ def Load_Mnist_proc(): # 为了便于将图片压缩，直接使用datasets.MNIS
         ]),
         download=True
         )
-    # test_data = datasets.MNIST(
-    #     root=dataroot,
-    #     train=False,
-    #     transform=transforms.Compose([
-    #         transforms.Resize(image_size),
-    #         transforms.ToTensor(),
-    #         transforms.Normalize((0.5,), (0.5,))
-    #     ])
-    # )
-    # dataset = train_data+test_data
-    dataset = train_data
+    test_data = datasets.MNIST(
+        root=dataroot,
+        train=False,
+        transform=transforms.Compose([
+            transforms.Resize(image_size),
+            transforms.ToTensor(),
+            transforms.Normalize((0.5,), (0.5,))
+        ])
+    )
+    dataset = train_data+test_data
     # print(f'Total Size of Dataset: {len(dataset)}')
 
     dataloader = DataLoader(
