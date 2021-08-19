@@ -16,24 +16,31 @@ from torch.utils.data import DataLoader
 from torch.autograd import Variable
 import numpy as np
 
-from VAE_GAN_Mnist_v5 import VAE
+from VAE_GAN_Cifar import VAE
 
-from plot import plot_result
+from plot import plot_result_accuracy, plot_result_record
 
-# 加载mnist数据集
-def Load_Mnist():
-    train_data = torchvision.datasets.MNIST( # train_set
+# 加载cifar数据集
+def Load_Cifar():
+    train_data = torchvision.datasets.CIFAR10( # train_set
         root='./data/',
         train=True,
-        transform=transforms.ToTensor(),
-        download=False # 首次使用设为True来下载数据集，之后设为False
+        transform=transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+        ]),
+        download=True   # 首次使用设为True来下载数据集，之后设为False
     )
-    test_data = torchvision.datasets.MNIST( # test_set
+    test_data = torchvision.datasets.CIFAR10( # test_set
         root='./data/',
         train=False,
-        transform=transforms.ToTensor(),
+        transform=transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+        ]),
         download=False
     )
+    print(f' Size of Train Dataset: {len(train_data)}, Size of Test Dataset: {len(test_data)}')
     train_loader = DataLoader(
         dataset=train_data,
         batch_size=BATCH_SIZE,
@@ -45,6 +52,7 @@ def Load_Mnist():
         shuffle=False
     )
     return train_loader, test_loader
+
 
 # 查看数据（可视化数据）
 def datashow(train_loader):
@@ -63,33 +71,37 @@ class Net(nn.Module):
 
     def __init__(self):
         super(Net, self).__init__()
-        # 1 input image channel, 6 output channels, 5x5 square convolution
-        # kernel
-        self.conv1 = nn.Conv2d(1, 6, 3, 1, 2)
-        self.conv2 = nn.Conv2d(6, 16, 5)
-        # an affine operation: y = Wx + b
-        self.fc1 = nn.Linear(16 * 5 * 5, 120)
-        self.fc2 = nn.Linear(120, 84)
-        self.fc3 = nn.Linear(84, 10)
+        '''输入为3*32*32，尺寸减半是因为池化层'''
+        self.conv1=nn.Sequential(   #建立第一个卷积层
+            nn.Conv2d(   #二维卷积层，通过过滤器提取特征
+                in_channels=3,   # 图片有几个通道（灰度图片1通道，彩色图片3通道）
+                out_channels=16,   # 过滤器也就是卷积核的个数（每一个卷积核都是3通道，和输入图片通道数相同，但是输出的个数依然是卷积核的个数，是因为运算过程中3通道合并为一个通道）
+                kernel_size=5,   # 过滤器的宽和高都是5个像素点
+                stride=1,   # 每次移动的像素点的个数（步子大小）
+                padding=2,   # 在图片周围添加0的层数，stride=1时，padding=(kernel_size-1)/2
+            ),   #(3,32,32)-->(16,32,32)
+            nn.ReLU(),   #激活函数
+            nn.MaxPool2d(kernel_size=2),   # 池化层，压缩特征，一般采用Max方式，kernel_size=2代表在2*2的特征区间内去除最大的) (16,32,32)-->(16,16,16)
+        )
+        self.conv2=nn.Sequential(   #建立第二个卷积层
+            nn.Conv2d(16,32,5,1,2),  # (16,16,16) -->(32,16,16)
+            nn.ReLU(),
+            nn.MaxPool2d(2),   # (32,16,16)-->(32,8,8)
+        )
+        self.conv3=nn.Sequential(
+            nn.Conv2d(32,64,5,1,2),   #(32,8,8)-->(64,8,8)
+            nn.ReLU(),
+            nn.MaxPool2d(2),   #(64,8,8)-->(64,4,4)
+        )
+        self.out=nn.Linear(64*4*4,10)   # 全连接层，矩阵相乘形成（1，10）
 
     def forward(self, x):
-        # Max pooling over a (2, 2) window
-        x = F.max_pool2d(F.relu(self.conv1(x)), (2, 2))
-        # If the size is a square you can only specify a single number
-        x = F.max_pool2d(F.relu(self.conv2(x)), 2)
-        x = x.view(-1, self.num_flat_features(x))
-        x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
-        x = self.fc3(x)     # x为10个类别的得分
-        # x = F.sigmoid(x)
+        x=self.conv1(x)
+        x=self.conv2(x)
+        x=self.conv3(x)
+        x=x.view(-1,64*4*4,)   #行数-1代表不知道多少行的情况下，根据原来Tensor内容和Tensor的大小自动分配行数，但是这里为1行
+        x=self.out(x)
         return x
-
-    def num_flat_features(self, x):
-        size = x.size()[1:]  # all dimensions except the batch dimension
-        num_features = 1
-        for s in size:
-            num_features *= s
-        return num_features
 
 # 模型训练
 def train(epoch, train_counter, train_losses, train_accs):
@@ -175,11 +187,12 @@ def test(net):
     for i in range(10):
         print('Accuracy of %s : %2.2f %%' % (i, 100 * class_correct[i] / class_total[i]))
         accuracy.append(class_correct[i] / class_total[i])
-    # for i in range(10):
-    #     print(record[i] / class_total[i])
+    for i in range(10):
+        record[i] = record[i] / class_total[i]
+        print(record[i])
     print('---------------------------------------------------------------')
 
-    return accuracy
+    return accuracy, record
 
 
 
@@ -199,7 +212,7 @@ if __name__ == '__main__':
     test_loader = []
 
     # 加载数据集并显示
-    train_loader, test_loader = Load_Mnist()
+    train_loader, test_loader = Load_Cifar()
     # datashow(train_loader)
 
     train_counter = []
@@ -230,9 +243,13 @@ if __name__ == '__main__':
     # plt.show()
 
     # # Test
-    Target_model.load_state_dict(torch.load('./results/Mnist/param_minist_5.pt'))
-    accuracy_target = test(Target_model)
-    SGAN.load_state_dict(torch.load('./results/VAE_Mnist2/model_final.pt'))
-    accuracy_SGAN = test(SGAN)
-    
-    plot_result(accuracy_target, accuracy_SGAN)
+    Target_model.load_state_dict(torch.load('./results/Cifar/param_minist_10.pt'))
+    accuracy_target, record_target = test(Target_model)
+    SGAN.load_state_dict(torch.load('./results/VAE_Cifar/model_final.pt'))
+    accuracy_SGAN_1, record_SGAN_1 = test(SGAN)
+    accuracy_SGAN_2, record_SGAN_2 = test(SGAN)
+
+    plot_result_accuracy(accuracy_target, accuracy_SGAN_1, accuracy_SGAN_2)
+
+    for i in range(10):
+        plot_result_record(record_target[i], record_SGAN_1[i], record_SGAN_2[i])

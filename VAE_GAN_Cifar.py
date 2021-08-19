@@ -20,19 +20,28 @@ import matplotlib.animation as animation
 from IPython.display import HTML
 import numpy as np
 import cv2
-from  CNN_Mnist import Net
+from CNN_Cifar import Net
 
-def Load_Mnist_ori():
-    train_data = datasets.MNIST( # train_set
+# Set random seed for reproducibility
+# torch.manual_seed(0)
+
+def Load_Cifar_ori():
+    train_data = datasets.CIFAR10( # train_set
         root=dataroot,
         train=True,
-        transform=transforms.ToTensor(),
+        transform=transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+        ]),
         download=True   # 首次使用设为True来下载数据集，之后设为False
     )
-    test_data = datasets.MNIST( # test_set
+    test_data = datasets.CIFAR10( # test_set
         root=dataroot,
         train=False,
-        transform=transforms.ToTensor(),
+        transform=transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+        ]),
         download=True
     )
     dataset = train_data+test_data
@@ -47,24 +56,24 @@ def Load_Mnist_ori():
 
     return dataloader
 
-def Load_Mnist_proc(): # 为了便于将图片压缩，直接使用datasets.MNIST中的transform
-    train_data = datasets.MNIST(
+def Load_Cifar_proc(): # 为了便于将图片压缩，直接使用datasets.MNIST中的transform
+    train_data = datasets.CIFAR10(
         root=dataroot,
         train=True,
         transform=transforms.Compose([
             transforms.Resize(image_size),
             transforms.ToTensor(),
-            transforms.Normalize((0.5,), (0.5,))
+            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
         ]),
         download=True
         )
-    test_data = datasets.MNIST(
+    test_data = datasets.CIFAR10(
         root=dataroot,
         train=False,
         transform=transforms.Compose([
             transforms.Resize(image_size),
             transforms.ToTensor(),
-            transforms.Normalize((0.5,), (0.5,))
+            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
         ])
     )
     dataset = train_data+test_data
@@ -128,21 +137,39 @@ class VAE(nn.Module):
         super(VAE, self).__init__()
         # 1 input image channel, 6 output channels, 5x5 square convolution
         # kernel
-        self.conv1 = nn.Conv2d(1, 6, 3, 1, 2)
-        self.conv2 = nn.Conv2d(6, 16, 5)
+        self.conv1=nn.Sequential(   #建立第一个卷积层
+            nn.Conv2d(   #二维卷积层，通过过滤器提取特征
+                in_channels=3,   # 图片有几个通道（灰度图片1通道，彩色图片3通道）
+                out_channels=16,   # 过滤器也就是卷积核的个数（每一个卷积核都是3通道，和输入图片通道数相同，但是输出的个数依然是卷积核的个数，是因为运算过程中3通道合并为一个通道）
+                kernel_size=5,   # 过滤器的宽和高都是5个像素点
+                stride=1,   # 每次移动的像素点的个数（步子大小）
+                padding=2,   # 在图片周围添加0的层数，stride=1时，padding=(kernel_size-1)/2
+            ),   #(3,32,32)-->(16,32,32)
+            nn.ReLU(),   #激活函数
+            nn.MaxPool2d(kernel_size=2),   # 池化层，压缩特征，一般采用Max方式，kernel_size=2代表在2*2的特征区间内去除最大的) (16,32,32)-->(16,16,16)
+        )
+        self.conv2=nn.Sequential(   #建立第二个卷积层
+            nn.Conv2d(16,32,5,1,2),  # (16,16,16) -->(32,16,16)
+            nn.ReLU(),
+            nn.MaxPool2d(2),   # (32,16,16)-->(32,8,8)
+        )
+        self.conv3=nn.Sequential(
+            nn.Conv2d(32,64,5,1,2),   #(32,8,8)-->(64,8,8)
+            nn.ReLU(),
+            nn.MaxPool2d(2),   #(64,8,8)-->(64,4,4)
+        )
         # an affine operation: y = Wx + b
-        self.fc1 = nn.Linear(16 * 5 * 5, 120)
-        self.fc21 = nn.Linear(120, 20)
-        self.fc22 = nn.Linear(120, 20)
+        self.fc1 = nn.Linear(64*4*4, 200)
+        self.fc21 = nn.Linear(200, 20)
+        self.fc22 = nn.Linear(200, 20)
         self.fc3 = nn.Linear(20, 100)
         self.fc4 = nn.Linear(100, 10)
 
     def forward(self, x):
-        # Max pooling over a (2, 2) window
-        x = F.max_pool2d(F.relu(self.conv1(x)), (2, 2))
-        # If the size is a square you can only specify a single number
-        x = F.max_pool2d(F.relu(self.conv2(x)), 2)
-        x = x.view(-1, self.num_flat_features(x))
+        x=self.conv1(x)
+        x=self.conv2(x)
+        x=self.conv3(x)
+        x=x.view(-1,64*4*4,)
         x = F.relu(self.fc1(x))
 
         mu = self.fc21(x)
@@ -175,10 +202,11 @@ class Discriminator_MLP(nn.Module):
     def __init__(self, ngpu, input_size):
         super(Discriminator_MLP, self).__init__()
         self.ngpu = ngpu
-        # 初始化四层神经网络 两个全连接的隐藏层，一个输出层
-        self.fc1 = nn.Linear(input_size,200) # 第一个隐含层
-        self.fc2 = nn.Linear(200,100) # 第二个隐含层
-        self.fc3 = nn.Linear(100,1)  # 输出层
+        # 初始化四层神经网络 三个全连接的隐藏层，一个输出层
+        self.fc1 = nn.Linear(input_size,600) # 第一个隐含层
+        self.fc2 = nn.Linear(600,600) # 第二个隐含层
+        self.fc3 = nn.Linear(600,200)  # 输出层
+        self.fc4 = nn.Linear(200,1)  # 输出层
         self.dropout = nn.Dropout(p=0.5)    # Dropout暂时先不打开
 
     def forward(self, din):
@@ -189,6 +217,8 @@ class Discriminator_MLP(nn.Module):
         dout = self.fc2(dout)
         dout = F.relu(dout)
         dout = self.fc3(dout)
+        dout = F.relu(dout)
+        dout = self.fc4(dout)
         dout = F.sigmoid(dout)
         # dout = F.softmax(dout, dim=1) # 输出层使用 softmax 激活函数,这里输出层为1,因此不需要softmax,使用sigmoid
 
@@ -199,24 +229,24 @@ if __name__ == '__main__':
     dataroot = "/home/PJLAB/sunyiyang/桌面/PJlab/GAN_Exp/Datasets"  # Root directory for dataset
     workers = 10    # Number of workers for dataloader
     batch_size = 100    # Batch size during training
-    image_size = 14  # 可以根据自己的需求改变，这里把图像缩成14*14个像素，Spatial size of training images. All images will be resized to this size using a transformer.
+    image_size = 16  # 可以根据自己的需求改变，这里把图像缩成16个像素，Spatial size of training images. All images will be resized to this size using a transformer.
     class_size = 10  # 分为十类
-    input_size = image_size*image_size + class_size
+    input_size = 3*image_size*image_size + class_size   # 需要考虑通道数3
     nc = 1          # Number of channels in the training images. For color images this is 3
     num_epochs = 100 # Number of training epochs
-    lr = 0.0001     # Learning rate for optimizers
+    lr = 0.0002  # Learning rate for optimizers
     beta1 = 0.5     # Beta1 hyperparam for Adam optimizers
-    ngpu = 1        # Number of GPUs available. Use 0 for CPU mode.
+    ngpu = 1         # Number of GPUs available. Use 0 for CPU mode.
     
     DEVICE = torch.device('cuda:0' if (torch.cuda.is_available() and ngpu > 0) else 'cpu')
     
     # 加载数据
-    dataloader_ori = Load_Mnist_ori()
-    dataloader_proc = Load_Mnist_proc()
+    dataloader_ori = Load_Cifar_ori()
+    dataloader_proc = Load_Cifar_proc()
 
     # 加载Target CNN模型
     Tar_CNN= Net().to(device=DEVICE)
-    Tar_CNN.load_state_dict(torch.load('./results/Mnist/param_minist_5.pt'))
+    Tar_CNN.load_state_dict(torch.load('./results/Cifar/param_minist_10.pt'))
 
     # 建立生成器、判别器
     netG = VAE().to(device=DEVICE)   # Create the generator
@@ -345,12 +375,12 @@ if __name__ == '__main__':
 
             # Save the Best Model
             if errG < loss_tep1 and epoch > 10:
-                torch.save(netG.state_dict(), './results/VAE_Mnist2/model_errG.pt')
+                torch.save(netG.state_dict(), './results/VAE_Cifar/model_errG.pt')
                 loss_tep1 = errG
             if epoch%10 == 0:  
-                torch.save(netG.state_dict(), './results/VAE_Mnist2/model_%d.pt'%(epoch))
+                torch.save(netG.state_dict(), './results/VAE_Cifar/model_%d.pt'%(epoch))
 
-    torch.save(netG.state_dict(), './results/VAE_Mnist2/model_final.pt')
+    torch.save(netG.state_dict(), './results/VAE_Cifar/model_final.pt')
 
     plt.figure(figsize=(20, 10))
     plt.title("Generator and Discriminator Loss During Training")
