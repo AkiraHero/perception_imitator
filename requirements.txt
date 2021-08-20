@@ -1,0 +1,7 @@
+numpy
+torch>=1.1
+numpy
+pyyaml
+torchvision
+matplotlib
+cv2

@@ -1,0 +1,7 @@
+# for minist dataset
+
+FOR_TRAIN: True
+DATA_ROOT: ./
+BATCH_SIZE: 16
+SHUFFLE: True
+NUM_WORKERS: 4

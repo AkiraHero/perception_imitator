@@ -2,21 +2,17 @@
 v2:用于测试VAE_GAN_Mnist_v4
 '''
 
-from contextlib import nullcontext
-from tarfile import NUL
-from matplotlib import image
 import torch
 import torchvision
 import torchvision.transforms as transforms
 import matplotlib.pyplot as plt
 import torch.nn as nn
 import torch.nn.functional as F
-import torch.optim as optim
 from torch.utils.data import DataLoader
 from torch.autograd import Variable
 import numpy as np
 
-from VAE_GAN_Mnist_v5 import VAE
+from main.VAE_GAN_Mnist_v5 import VAE
 
 from plot import plot_result
 
