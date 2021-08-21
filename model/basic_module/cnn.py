@@ -1,9 +1,10 @@
+from basic_module import BasicModule
 import torch.nn as nn
-import torch.nn.functional as F
+import torch.nn.functional as func
 
-class Net(nn.Module):
+class CNN(BasicModule):
     def __init__(self):
-        super(Net, self).__init__()
+        super(CNN, self).__init__()
         # 1 input image channel, 6 output channels, 5x5 square convolution
         # kernel
         self.conv1 = nn.Conv2d(1, 6, 3, 1, 2)
@@ -15,12 +16,14 @@ class Net(nn.Module):
 
     def forward(self, x):
         # Max pooling over a (2, 2) window
-        x = F.max_pool2d(F.relu(self.conv1(x)), (2, 2))
+        x = func.max_pool2d(func.relu(self.conv1(x)), (2, 2))
         # If the size is a square you can only specify a single number
-        x = F.max_pool2d(F.relu(self.conv2(x)), 2)
+        # todo why not use nn.MaxPool2d
+        # nn.MaxPool2d
+        x = func.max_pool2d(func.relu(self.conv2(x)), 2)
         x = x.view(-1, self.num_flat_features(x))
-        x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
+        x = func.relu(self.fc1(x))
+        x = func.relu(self.fc2(x))
         x = self.fc3(x)     # x为10个类别的得分
         # x = F.sigmoid(x)
         return x
@@ -31,3 +34,12 @@ class Net(nn.Module):
         for s in size:
             num_features *= s
         return num_features
+
+    @staticmethod
+    def check_config(config):
+        pass
+
+    @staticmethod
+    def build_module(config):
+        CNN.check_config(config)
+        return CNN()

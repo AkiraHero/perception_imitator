@@ -51,3 +51,12 @@ class VAE(nn.Module):
         else:
             eps = Variable(eps)
         return eps.mul(std).add_(mu)
+
+    @staticmethod
+    def check_config(config):
+        pass
+
+    @staticmethod
+    def build_module(config):
+        VAE.check_config(config)
+        return VAE()
