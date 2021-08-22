@@ -4,6 +4,14 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
 
+'''
+VAE
+Config Parameters:
+    backbone:''
+'''
+
+
+
 class VAE(nn.Module):
     def __init__(self):
         super(VAE, self).__init__()
@@ -29,7 +37,7 @@ class VAE(nn.Module):
         mu = self.fc21(x)
         logvar = self.fc22(x)
 
-        z = self.reparametrize(mu,logvar)
+        z = self.reparameterize(mu, logvar)
 
         x = F.relu(self.fc3(z))
         x = self.fc4(x)# x为10个类别的得分
@@ -43,7 +51,7 @@ class VAE(nn.Module):
             num_features *= s
         return num_features
 
-    def reparametrize(self, mu, logvar):    # 最后得到的是u(x)+sigma(x)*N(0,I)
+    def reparameterize(self, mu, logvar):    # 最后得到的是u(x)+sigma(x)*N(0,I)
         std = logvar.mul(0.5).exp_() # e**(x/2)
         eps = torch.FloatTensor(std.size()).normal_().cuda()   # 用正态分布填充eps
         if torch.cuda.is_available():

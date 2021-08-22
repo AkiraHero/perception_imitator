@@ -2,6 +2,17 @@ import torch
 import numpy as np
 import torch.nn as nn
 import math
+import torch.nn.functional as func
+from torch.nn.modules.utils import _pair
+
+act_func_dict = {
+    'relu': nn.ReLU,
+    'leaky_relu': nn.LeakyReLU,
+    'sigmoid': nn.Sigmoid,
+    'tanh': nn.Tanh,
+    'none': None
+}
+
 
 # todo: parameterize it or move it to specific model if rarely used
 def weights_init(m):
@@ -37,16 +48,25 @@ def Combine_data(data, label):  # 直接对tensor类型进行处理，这样可�
     return
 
 
-
 def cal_conv2d_output_shape(h_in, w_in, conv2d_obj):
-    assert isinstance(conv2d_obj, nn.Conv2d)
-    padding = conv2d_obj.padding
-    dilation = conv2d_obj.dilation
-    kernel_size = conv2d_obj.kernel_size
-    stride = conv2d_obj.stride
+    if not isinstance(conv2d_obj, nn.Conv2d):
+        raise TypeError
+    padding = _pair(conv2d_obj.padding)
+    dilation = _pair(conv2d_obj.dilation)
+    kernel_size = _pair(conv2d_obj.kernel_size)
+    stride = _pair(conv2d_obj.stride)
     h_out = math.floor((h_in + 2 * padding[0] - dilation[0] * (kernel_size[0] - 1) - 1) / stride[0] + 1)
     w_out = math.floor((w_in + 2 * padding[1] - dilation[1] * (kernel_size[1] - 1) - 1) / stride[1] + 1)
     return h_out, w_out
 
+
 def cal_max_pool2d_output_shape(h_in, w_in, max_pool2d_obj):
-    return cal_conv2d_output_shape(h_in, w_in, max_pool2d_obj)
+    if not isinstance(max_pool2d_obj, nn.MaxPool2d):
+        raise TypeError
+    padding = _pair(max_pool2d_obj.padding)
+    dilation = _pair(max_pool2d_obj.dilation)
+    kernel_size = _pair(max_pool2d_obj.kernel_size)
+    stride = _pair(max_pool2d_obj.stride)
+    h_out = math.floor((h_in + 2 * padding[0] - dilation[0] * (kernel_size[0] - 1) - 1) / stride[0] + 1)
+    w_out = math.floor((w_in + 2 * padding[1] - dilation[1] * (kernel_size[1] - 1) - 1) / stride[1] + 1)
+    return h_out, w_out

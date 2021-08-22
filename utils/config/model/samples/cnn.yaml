@@ -1,0 +1,40 @@
+name: cnn
+paras:
+  input_size: [1, 1000, 1000]
+  struct_list:
+  - name: conv2d
+    paras:
+      act_func: relu
+      chn_in: 1
+      chn_out: 6
+      kernel_size: 3
+      padding: 2
+      stride: 1
+  - name: max_pool2d
+    paras:
+      kernel_size: 2
+      stride: 1
+  - name: conv2d
+    paras:
+      act_func: relu
+      chn_in: 6
+      chn_out: 16
+      kernel_size: 5
+      padding: 0
+      stride: 1
+  - name: max_pool2d
+    paras:
+      kernel_size: 2
+      stride: 1
+  - name: linear
+    paras:
+      act_func: relu
+      node_num: 120
+  - name: linear
+    paras:
+      act_func: relu
+      node_num: 84
+  - name: linear
+    paras:
+      act_func: none
+      node_num: 10
