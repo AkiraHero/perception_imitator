@@ -1,35 +1,6 @@
-import torch.nn
-
 from model.basic_module.basic_module import BasicModule
 import torch.nn as nn
-import torch.nn.functional as func
 from utils.model.model_utils import cal_conv2d_output_shape, cal_max_pool2d_output_shape, act_func_dict
-
-'''
-CNN
-Config Parameters:
-    [
-        {
-            name: 'conv2d',
-            chn_in: 1,
-            chn_out: 6,
-            kernel_size: 3
-            stride: 1,
-            padding: 2,
-            act_func: 'relu'
-        },
-        {
-            name: 'linear',
-            node_num: 5,
-            act_func: 
-        },
-        {
-            name: 'max_pool2d',
-            kernel_size: 2,
-            stride: 1
-        }
-    ]
-'''
 
 
 class CNN(BasicModule):
@@ -87,7 +58,7 @@ class CNN(BasicModule):
         if unit_config['act_func'] != 'none':
             act_func = act_func_dict[unit_config['act_func']]
             obj_list.append(act_func())
-        obj = torch.nn.Sequential(*obj_list)
+        obj = nn.Sequential(*obj_list)
         out_shape = cal_conv2d_output_shape(input_shape[1], input_shape[2], conv2d)
         return obj, (unit_config['chn_out'], *out_shape)
 
@@ -108,7 +79,7 @@ class CNN(BasicModule):
         if unit_config['act_func'] != 'none':
             act_func = act_func_dict[unit_config['act_func']]
             obj_list.append(act_func())
-        obj = torch.nn.Sequential(*obj_list)
+        obj = nn.Sequential(*obj_list)
         return obj, unit_config['node_num']
 
     @staticmethod

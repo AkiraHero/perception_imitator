@@ -1,18 +1,17 @@
-import torch
+from dataset.dataset_base import DatasetBase
 from torch.utils.data import DataLoader
-from torch.utils.data import Dataset
 from torchvision import datasets, transforms
-import torch.nn as nn
-import numpy as np
 
-class MinistDataset(Dataset):
+
+class MinistDataset(DatasetBase):
     def __init__(self, config):
-        self._is_train = config['FOR_TRAIN']
-        self._data_root = config['DATA_ROOT']
-        self._batch_size = config['BATCH_SIZE']
-        self._shuffle = config['SHUFFLE']
-        self._num_workers = config['NUM_WORKERS']
-        self._embeding_dataset = datasets.MNIST(  # train_set
+        super().__init__()
+        self._is_train = config['paras']['for_train']
+        self._data_root = config['paras']['data_root']
+        self._batch_size = config['paras']['batch_size']
+        self._shuffle = config['paras']['shuffle']
+        self._num_workers = config['paras']['num_workers']
+        self._embedding_dataset = datasets.MNIST(  # train_set
             root=self._data_root,
             train=self._is_train,
             transform=transforms.ToTensor(),
@@ -20,11 +19,11 @@ class MinistDataset(Dataset):
         )
 
     def __len__(self):
-        return len(self._embeding_dataset)
+        return len(self._embedding_dataset)
 
     def __getitem__(self, item):
         assert item <= self.__len__()
-        return self._embeding_dataset[item]
+        return self._embedding_dataset[item]
 
     @staticmethod
     def get_data_loader_instance():

@@ -33,7 +33,7 @@ if __name__ == '__main__':
     # 加载数据
     # dataloader_ori = Load_Mnist_ori()
     # dataloader_proc = Load_Mnist_proc()
-    from data_loader.minist_loader import MinistDataset
+    from dataset.minist_loader import MinistDataset
     data_loader = MinistDataset.get_data_loader_instance()
     # get compressed img here
     from torchvision import transforms

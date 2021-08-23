@@ -1,9 +1,0 @@
-
-DATASET: 'KittiDataset'
-DATA_PATH: '../data/kitti'
-
-# minist, cifar
-TARGET_MODEL: 'minist'
-
-# vae-gan
-SIMULATOR_MODEL: 'vae-gan'

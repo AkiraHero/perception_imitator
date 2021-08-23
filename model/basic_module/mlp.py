@@ -2,21 +2,10 @@ from model.basic_module.basic_module import BasicModule
 import torch.nn as nn
 from utils.model.model_utils import act_func_dict
 
-'''
-MLP
-Config Parameters:
-    LayerNodeNums: []
-    LayerActFuncs: []
-'''
-
 
 class MLP(BasicModule):
     def __init__(self, config):
         super(MLP, self).__init__()
-        # # 初始化四层神经网络 两个全连接的隐藏层，一个输出层
-        # self.fc1 = nn.Linear(input_size,200) # 第一个隐含层
-        # self.fc2 = nn.Linear(200, 100) # 第二个隐含层
-        # self.fc3 = nn.Linear(100, 1)  # 输出层
         input_size_, layer_node_nums, layer_act_funcs = \
             config['paras']['input_size'], config['paras']['layer_node_num'], config['paras']['layer_act_func']
         assert isinstance(layer_node_nums, list)
