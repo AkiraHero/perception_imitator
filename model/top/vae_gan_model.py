@@ -1,4 +1,4 @@
-from model_base import ModelBase
+from model.model_base import ModelBase
 
 
 class VAEGANModel(ModelBase):

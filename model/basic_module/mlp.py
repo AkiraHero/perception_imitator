@@ -1,9 +1,9 @@
-from model.basic_module.basic_module import BasicModule
+from model.model_base import ModelBase
 import torch.nn as nn
 from utils.model.model_utils import act_func_dict
 
 
-class MLP(BasicModule):
+class MLP(ModelBase):
     def __init__(self, config):
         super(MLP, self).__init__()
         input_size_, layer_node_nums, layer_act_funcs = \
@@ -28,10 +28,10 @@ class MLP(BasicModule):
 
     @staticmethod
     def check_config(config):
-        BasicModule.check_config(config)
+        ModelBase.check_config(config)
         required_paras = ['input_size', 'layer_act_func', 'layer_node_num']
         #  check necessary parameters
-        BasicModule.check_config_dict(required_paras, config['paras'])
+        ModelBase.check_config_dict(required_paras, config['paras'])
 
     @staticmethod
     def build_module(config):

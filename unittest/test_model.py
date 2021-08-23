@@ -1,10 +1,10 @@
 from model.basic_module.mlp import MLP
 from model.basic_module.cnn import CNN
-from model.basic_module.basic_module import BasicModule
+from model.model_base import ModelBase
 
 import yaml
 
-BasicModule.register_class()
+ModelBase.register_class()
 
 
 config_file = "/home/xlju/Project/ModelSimulator/utils/config/model/samples/mlp.yaml"

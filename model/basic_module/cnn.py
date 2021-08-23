@@ -1,9 +1,9 @@
-from model.basic_module.basic_module import BasicModule
+from model.model_base import ModelBase
 import torch.nn as nn
 from utils.model.model_utils import cal_conv2d_output_shape, cal_max_pool2d_output_shape, act_func_dict
 
 
-class CNN(BasicModule):
+class CNN(ModelBase):
     def __init__(self, config):
         super(CNN, self).__init__()
         struct_list = config['paras']['struct_list']
@@ -22,10 +22,10 @@ class CNN(BasicModule):
 
     @staticmethod
     def check_config(config):
-        BasicModule.check_config(config)
+        ModelBase.check_config(config)
         required_paras = ['input_size', 'struct_list']
         #  check necessary parameters
-        BasicModule.check_config_dict(required_paras, config['paras'])
+        ModelBase.check_config_dict(required_paras, config['paras'])
 
     @staticmethod
     def build_unit(input_shape, unit_config):

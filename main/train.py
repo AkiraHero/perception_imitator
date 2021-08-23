@@ -8,7 +8,7 @@ if __name__ == '__main__':
     # manage config
     config = Configuration()
     args = config.get_shell_args_train()
-    config.load_config_file()
+    config.load_config_file(args.cfg_file)
     config.overwrite_config_by_shell_args(args)
 
     # instantiating all modules by non-singleton factory

@@ -23,7 +23,7 @@ class Configuration:
 
     def get_shell_args_train(self):
         parser = argparse.ArgumentParser(description='arg parser')
-        parser.add_argument('--cfg_file', type=str, default=None, help='specify the config for training')
+        parser.add_argument('--cfg_file', required=True, type=str, default=None, help='specify the config for training')
         parser.add_argument('--batch_size', type=int, default=None, required=False, help='batch size for training')
         parser.add_argument('--epochs', type=int, default=None, required=False,
                             help='number of epochs to train for')
@@ -105,20 +105,69 @@ class Configuration:
             return True
         return False
 
-
     def pack_configurations(self, _path):
         # all config file should be located in utils/config?? no
-        # pack config using expanded config
+        # todo: pack config using expanded config
         pass
 
+    def find_node(self, node_name):
+        if not isinstance(self.expanded_config, dict):
+            raise TypeError
+        res_parents = []
+        res = Configuration._find_node_subtree(self.expanded_config, node_name, res_parents)
 
-    def load_top_config_file(self, file):
-        pass
+        def flat_parents_list(parents, output):
+            if len(parents) > 1:
+                output.append(parents[0])
+            else:
+                return
+            flat_parents_list(parents[1], output)
+        output_parents = []
+        flat_parents_list(res_parents, output_parents)
+        return res, output_parents
 
+
+    @staticmethod
+    def _find_node_subtree(cur_node, keyword, parents_log=None):
+        if isinstance(parents_log, list):
+            parents_log.append(keyword)
+        if not isinstance(cur_node, dict):
+            return None
+        res = Configuration._find_node_cur(cur_node, keyword)
+        if res is None:
+            for i in cur_node.keys():
+                parents_log.clear()
+                if isinstance(parents_log, list):
+                    parents_log.append(i)
+                new_parents_log = []
+                parents_log.append(new_parents_log)
+                res = Configuration._find_node_subtree(cur_node[i], keyword, new_parents_log)
+                if res is not None:
+                    return res
+        return res
+
+    @staticmethod
+    def _find_node_cur(cur_node, keyword):
+        if not isinstance(cur_node, dict):
+            return None
+        for i in cur_node.keys():
+            if i == keyword:
+                return cur_node[i]
+        return None
+
+    def overwrite_value_by_keywords(self, parents_keywords_list, cur_keywords, new_value):
+        if not isinstance(self.expanded_config, dict):
+            raise TypeError
+        sub_dict_ref = self.expanded_config
+        for key in parents_keywords_list:
+            sub_dict_ref = sub_dict_ref[key]
+        sub_dict_ref[cur_keywords] = new_value
 
     # only overwrite the first-found one on condition of equal keys
     def overwrite_config_by_shell_args(self, args):
-        pass
-
+        for name, value in args._get_kwargs():
+            node, parents = self.find_node(name)
+            if node is not None:
+                self.overwrite_value_by_keywords(parents, name, value)
 
 

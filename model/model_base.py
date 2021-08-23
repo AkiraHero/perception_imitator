@@ -1,11 +1,11 @@
 import torch.nn as nn
 
 
-class BasicModule(nn.Module):
+class ModelBase(nn.Module):
     module_class_list = {}
 
     def __init__(self):
-        super(BasicModule, self).__init__()
+        super(ModelBase, self).__init__()
         self.output_shape = None
 
     def get_output_shape(self):
@@ -16,7 +16,7 @@ class BasicModule(nn.Module):
     @staticmethod
     def check_config(config):
         required_paras = ['name', 'paras']
-        BasicModule.check_config_dict(required_paras, config)
+        ModelBase.check_config_dict(required_paras, config)
 
     @staticmethod
     def check_config_dict(required, config):
