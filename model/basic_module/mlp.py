@@ -12,16 +12,15 @@ class MLP(ModelBase):
         assert isinstance(layer_act_funcs, list)
         assert len(layer_node_nums) == len(layer_act_funcs)
         self.acts = layer_act_funcs
-        self.layers = []
         input_size = input_size_
-        for i in layer_node_nums:
-            self.layers.append(nn.Linear(input_size, i))
+        for inx, i in enumerate(layer_node_nums):
+            self.mod_dict.add_module(str(inx), nn.Linear(input_size, i))
             input_size = i
-        self.output_shape = self.layers[-1]
+        self.output_shape = layer_node_nums[-1]
 
     def forward(self, input_):
         input_data = input_
-        for layer, act in zip(self.layers, self.acts):
+        for layer, act in zip(self.mod_list, self.acts):
             input_data = layer(input_data)
             input_data = act(input_data)
         return input_data

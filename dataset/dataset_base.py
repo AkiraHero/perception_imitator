@@ -8,3 +8,6 @@ class DatasetBase(Dataset):
 
     def __getitem__(self, index) -> T_co:
         raise NotImplementedError
+
+    def get_data_loader(self):
+        raise NotImplementedError

@@ -13,7 +13,6 @@ act_func_dict = {
     'none': None
 }
 
-
 # todo: parameterize it or move it to specific model if rarely used
 def weights_init(m):
     classname = m.__class__.__name__
@@ -37,7 +36,6 @@ def Change_data(data):  # 对真值图片和标签进行处理(之前几版代�
 # todo : no use : delete it
 def Combine_data(data, label):  # 直接对tensor类型进行处理，这样可以保存反传的梯度，将处理后图片与经过G得到的类别组合成可以输入D的数据
     pic_len = data.shape[1] * data.shape[2] * data.shape[3]  # 获取每一张图片压缩后的总像素个数
-
     img_Din = data.squeeze().reshape((data.shape[0], 1, pic_len))  # 变为batch_size*1*len
     # label_Din = label.cpu().unsqueeze(-1).unsqueeze(-1).numpy()   # 获得对应label
     label_Din = label.cpu().unsqueeze(-2)  # 获得对应label,对于增添10各类别概率仅需要加一个维度即可

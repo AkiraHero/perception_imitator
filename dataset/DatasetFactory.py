@@ -1,5 +1,5 @@
 from dataset.dataset_base import DatasetBase
-from dataset.minist_loader import MinistDataset
+from dataset.minist_dataset import MinistDataset
 
 
 class DatasetFactory:
@@ -12,5 +12,5 @@ class DatasetFactory:
         all_classes = DatasetBase.__subclasses__()
         for cls in all_classes:
             if cls.__name__ == class_name:
-                return cls(data_config)
+                return cls(data_config['config_file']['expanded'])
         raise TypeError(f'no class named \'{class_name}\' found in dataset folder')

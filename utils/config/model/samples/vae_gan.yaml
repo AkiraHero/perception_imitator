@@ -1,0 +1,13 @@
+name: VAEGANModel
+paras:
+  submodules:
+    discriminator:
+      config_file: /home/xlju/Project/ModelSimulator/utils/config/model/samples/mlp.yaml
+      model_class: MLP
+    encoder:
+      config_file: /home/xlju/Project/ModelSimulator/utils/config/model/samples/vae.yaml
+      model_class: VAE
+    target_model:
+      config_file: /home/xlju/Project/ModelSimulator/utils/config/model/samples/cnn.yaml
+      model_class: CNN
+      model_para_file: /home/xlju/Project/ModelSimulator/model_paras/param_minist_5.pt

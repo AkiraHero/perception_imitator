@@ -16,5 +16,7 @@ if __name__ == '__main__':
     dataset = DatasetFactory.get_data_loader(config.dataset_config)
     trainer = TrainerFactory.get_trainer(config.training_config)
 
-    trainer.set(model=model, dataset=dataset)
+    trainer.set_model(model)
+    trainer.set_dataset(dataset)
     trainer.run()
+    pass

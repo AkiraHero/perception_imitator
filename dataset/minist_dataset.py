@@ -1,7 +1,7 @@
 from dataset.dataset_base import DatasetBase
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
-
+import torch
 
 class MinistDataset(DatasetBase):
     def __init__(self, config):
@@ -25,14 +25,12 @@ class MinistDataset(DatasetBase):
         assert item <= self.__len__()
         return self._embedding_dataset[item]
 
-    @staticmethod
-    def get_data_loader_instance():
-        dataset = MinistDataset()
+    def get_data_loader(self):
         return DataLoader(
-            dataset=dataset,
-            batch_size=dataset._batch_size,
-            shuffle=dataset._shuffle,
-            num_workers=dataset._num_workers
+            dataset=self,
+            batch_size=self._batch_size,
+            shuffle=self._shuffle,
+            num_workers=self._num_workers,
         )
 
 

@@ -7,11 +7,17 @@ class ModelBase(nn.Module):
     def __init__(self):
         super(ModelBase, self).__init__()
         self.output_shape = None
+        self.device = None
+        self.mod_dict = nn.ModuleDict()
 
     def get_output_shape(self):
         if not self.output_shape:
             raise NotImplementedError
         return self.output_shape
+
+    def set_device(self, device):
+        self.device = device
+        self.to(self.device)
 
     @staticmethod
     def check_config(config):

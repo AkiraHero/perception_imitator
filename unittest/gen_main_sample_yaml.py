@@ -10,16 +10,35 @@ if __name__ == '__main__':
     config_dict = {
         'dataset': {
             'dataset_class': 'MinistDataset',
-            'config_file': '/home/xlju/Project/ModelSimulator/utils/config/dataset/minist.yaml'
+            'config_file': '/home/xlju/Project/ModelSimulator/utils/config/dataset/minist.yaml',
+            'batch_size': 16,
         },
         'model': {
-            'model_class': 'CNN',
-            'config_file': '/home/xlju/Project/ModelSimulator/utils/config/model/samples/cnn.yaml'
+            'model_class': 'VAEGANModel',
+            'config_file': '/home/xlju/Project/ModelSimulator/utils/config/model/samples/vae_gan.yaml'
         },
         'training': {
+            'trainer_class': 'VAEGANTrainer',
             'epoch': 100,
-            'batch_size': 16,
-            'device': 0
+            'device': 0,
+            'optimizer': [
+                {
+                    'name': 'encoder_opt',
+                    'type': 'Adam',
+                    'paras': {
+                        'lr': 0.0001,
+                        'betas': [0.5, 0.999]
+                    }
+                },
+                {
+                    'name': 'discriminator_opt',
+                    'type': 'Adam',
+                    'paras': {
+                        'lr': 0.0001,
+                        'betas': [0.5, 0.999]
+                    }
+                }
+            ]
         },
         'logging': {
             'path': '',
@@ -29,5 +48,4 @@ if __name__ == '__main__':
     }
     with open(outfile, 'w') as f:
         yaml.dump(config_dict, f)
-
 

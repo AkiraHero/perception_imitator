@@ -14,11 +14,11 @@ class Configuration:
         self.expanded_config = None
         self.all_related_config_files = []
 
-        # self.dataset_config = None
-        # self.training_config = None
-        # self.testing_config = None
-        # self.logging_config = None
-        # self.model_config = None
+        self.dataset_config = None
+        self.training_config = None
+        self.testing_config = None
+        self.logging_config = None
+        self.model_config = None
         pass
 
     def get_shell_args_train(self):
@@ -76,13 +76,24 @@ class Configuration:
     @staticmethod
     def _load_yaml(file):
         with open(file, 'r') as f:
-            return yaml.load(f)
+            return yaml.safe_load(f)
 
     def load_config_file(self, config_file):
         self.root_config = Configuration._load_yaml(config_file)
         self.expanded_config = self.root_config.copy()
         self.all_related_config_files.append(config_file)
         self._expand_config(self.expanded_config)
+        # set corresponding config
+        if 'model' in self.expanded_config.keys():
+            self.model_config = self.expanded_config['model']
+        if 'dataset' in self.expanded_config.keys():
+            self.dataset_config = self.expanded_config['dataset']
+        if 'training' in self.expanded_config.keys():
+            self.training_config = self.expanded_config['training']
+        if 'testing' in self.expanded_config.keys():
+            self.testing_config = self.expanded_config['testing']
+        if 'logging' in self.expanded_config.keys():
+            self.logging_config = self.expanded_config['logging']
 
     def _expand_config(self, config_dict):
         if not self._expand_cur_config(config_dict):
@@ -97,6 +108,7 @@ class Configuration:
         if 'config_file' in config_dict.keys() and isinstance(config_dict['config_file'], str):
             file_name = config_dict['config_file']
             expanded = Configuration._load_yaml(file_name)
+            self._expand_config(expanded)
             self.all_related_config_files.append(file_name)
             config_dict['config_file'] = {
                 'file_name': file_name,
@@ -110,11 +122,12 @@ class Configuration:
         # todo: pack config using expanded config
         pass
 
-    def find_node(self, node_name):
-        if not isinstance(self.expanded_config, dict):
+    @staticmethod
+    def find_dict_node(target_dict, node_name):
+        if not isinstance(target_dict, dict):
             raise TypeError
         res_parents = []
-        res = Configuration._find_node_subtree(self.expanded_config, node_name, res_parents)
+        res = Configuration._find_node_subtree(target_dict, node_name, res_parents)
 
         def flat_parents_list(parents, output):
             if len(parents) > 1:
@@ -126,6 +139,8 @@ class Configuration:
         flat_parents_list(res_parents, output_parents)
         return res, output_parents
 
+    def find_node(self, node_name):
+        return Configuration.find_dict_node(self.expanded_config, node_name)
 
     @staticmethod
     def _find_node_subtree(cur_node, keyword, parents_log=None):

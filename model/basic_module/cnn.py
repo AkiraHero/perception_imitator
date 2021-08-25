@@ -9,14 +9,13 @@ class CNN(ModelBase):
         struct_list = config['paras']['struct_list']
         # shape should be channels * Height * Width
         input_shape = config['paras']['input_size']
-        self._mod_list = []
-        for unit_config in struct_list:
+        for inx, unit_config in enumerate(struct_list):
             obj, input_shape = CNN.build_unit(input_shape, unit_config)
-            self._mod_list.append(obj)
+            self.mod_dict.add_module(str(inx), obj)
         self.output_shape = input_shape
 
     def forward(self, x):
-        for mod in self._mod_list:
+        for _, mod in self.mod_dict.items():
             x = mod(x)
         return x
 
@@ -34,9 +33,9 @@ class CNN(ModelBase):
             'linear': CNN.build_linear,
             'max_pool2d': CNN.build_max_pool2d
         }
-        if unit_config['name'] not in func_dict.keys():
+        if unit_config['class'] not in func_dict.keys():
             raise KeyError
-        return func_dict[unit_config['name']](input_shape, unit_config['paras'])
+        return func_dict[unit_config['class']](input_shape, unit_config['paras'])
 
     @staticmethod
     def build_conv2d(input_shape, unit_config):
