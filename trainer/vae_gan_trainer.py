@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch
 from torchvision import transforms
 
+
 class VAEGANTrainer(TrainerBase):
     def __init__(self, config):
         super(VAEGANTrainer, self).__init__()
@@ -16,9 +17,9 @@ class VAEGANTrainer(TrainerBase):
 
     def set_optimizer(self, optimizer_config):
         optimizer_ref = torch.optim.__dict__[self.optimizer_config[0]['type']]
-        self.encoder_optimizer = optimizer_ref(self.model.encoder.parameters(), **optimizer_config[0]['paras'])
+        self.encoder_optimizer = optimizer_ref(self.model.generator.parameters(), **optimizer_config[0]['paras'])
         optimizer_ref = torch.optim.__dict__[self.optimizer_config[1]['type']]
-        self.discriminator_optimizer = optimizer_ref(self.model.encoder.parameters(), **optimizer_config[1]['paras'])
+        self.discriminator_optimizer = optimizer_ref(self.model.generator.parameters(), **optimizer_config[1]['paras'])
 
     def run(self):
         if not self.check_ready():
@@ -27,8 +28,6 @@ class VAEGANTrainer(TrainerBase):
         self.set_optimizer(self.optimizer_config)
         self.model.set_device(self.device)
         self.data_loader = self.dataset.get_data_loader()
-        #todo : when device is known, set_device method should be performed on both dataset and model
-
 
         # 初始化Optimizers和损失函数
         criterion = nn.BCELoss()  # Initialize BCELoss function
@@ -52,27 +51,29 @@ class VAEGANTrainer(TrainerBase):
         for epoch in range(self.max_epoch):
             for step, data in enumerate(self.data_loader):
                 imgs = data[0]
-                labels = data[1]
+                # gt_labels = data[1]
                 cur_batch_size = data[0].shape[0]
                 self.encoder_optimizer.zero_grad()
                 self.discriminator_optimizer.zero_grad()
+
                 # process img
                 imgs = tf_normalize(imgs).to(device=self.device)
-                generator_input = imgs
-                target_score = self.model.target_model(generator_input)
-
                 resized_img_ = tf_resize(tf_normalize(imgs))
                 img_shape = resized_img_.shape
                 pic_len = img_shape[1] * img_shape[2] * img_shape[3]
-                img_ = resized_img_.squeeze().reshape((cur_batch_size, 1, pic_len))
+                flattened_img_vector = resized_img_.squeeze().reshape((cur_batch_size, 1, pic_len))
+
+                # Get output of target_model
+                generator_input = imgs
+                target_score = self.model.target_model(generator_input)
+
+                # Get discriminator input: flattened image and target model output
                 target_score = target_score.unsqueeze(-2)
-
-
-                discriminator_input_real = torch.cat((img_, target_score), 2)
+                discriminator_input_real = torch.cat((flattened_img_vector, target_score), 2)
                 real_fake_label_fullfilled = torch.full((cur_batch_size,),
                                                         real_label, dtype=torch.float, device=self.device)
 
-                # Forward pass real batch through D
+                # Forward pass real batch through discriminator
                 output = self.model.discriminator(discriminator_input_real).view(-1)
                 # Calculate loss on all-real batch
                 errD_real = criterion(output, real_fake_label_fullfilled)
@@ -81,14 +82,14 @@ class VAEGANTrainer(TrainerBase):
                 D_x = output.mean().item()
 
                 # Train with all-fake batch
-                G_input = imgs
+                generator_input = imgs
                 # Generate fake image batch with G
-                G_score, mu, logvar = self.model.encoder(G_input)  # 得到每一类的得分
+                G_score, mu, logvar = self.model.generator(generator_input)  # 得到每一类的得分
                 # _, G_score = torch.max(G_score.data, 1)
                 G_score = G_score.unsqueeze(-2)
                 # 处理压缩图和G生成类别得到可用于输入D的数据
 
-                discriminator_input_fake = torch.cat((img_, G_score), 2)
+                discriminator_input_fake = torch.cat((flattened_img_vector, G_score), 2)
                 real_fake_label_fullfilled.fill_(fake_label)
                 # Classify all fake batch with D
                 output = self.model.discriminator(discriminator_input_fake.detach()).view(-1)
