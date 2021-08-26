@@ -2,7 +2,6 @@ from trainer.trainer_base import TrainerBase
 import torch.nn as nn
 import torch
 from torchvision import transforms
-import torch.nn.functional as F
 
 class VAEGANTrainer(TrainerBase):
     def __init__(self, config):
@@ -86,7 +85,7 @@ class VAEGANTrainer(TrainerBase):
                 # Generate fake image batch with G
                 G_score, mu, logvar = self.model.encoder(G_input)  # 得到每一类的得分
                 # _, G_score = torch.max(G_score.data, 1)
-
+                G_score = G_score.unsqueeze(-2)
                 # 处理压缩图和G生成类别得到可用于输入D的数据
 
                 discriminator_input_fake = torch.cat((img_, G_score), 2)
@@ -110,14 +109,14 @@ class VAEGANTrainer(TrainerBase):
                 # netG.zero_grad()
                 real_fake_label_fullfilled.fill_(real_label)  # fake labels are real for generator cost
                 # Since we just updated D, perform another forward pass of all-fake batch through D
-                output = self.model.discriminator(fake).view(-1)
+                output = self.model.discriminator(discriminator_input_fake).view(-1)
                 # Calculate G's loss based on this output
-                errG1 = criterion(output, label)  # 希望生成的假数据能让D判成1
+                errG1 = criterion(output, real_fake_label_fullfilled)  # 希望生成的假数据能让D判成1
                 # Calculate gradients for G
                 # errG.backward()
 
                 KLD_element = mu.pow(2).add_(logvar.exp()).mul_(-1).add_(1).add_(logvar)
-                errG_KLD = F.sigmoid(torch.sum(KLD_element))
+                errG_KLD = torch.sigmoid(torch.sum(KLD_element))
 
                 errG = errG1.add_(errG_KLD)
                 errG.backward()
@@ -126,6 +125,8 @@ class VAEGANTrainer(TrainerBase):
 
                 # Update G
                 self.encoder_optimizer.step()
+
+                pass
 
                 # # Output training stats
                 # end_time = time.time()

@@ -11,7 +11,7 @@ class MLP(ModelBase):
         assert isinstance(layer_node_nums, list)
         assert isinstance(layer_act_funcs, list)
         assert len(layer_node_nums) == len(layer_act_funcs)
-        self.acts = layer_act_funcs
+        self.acts = [act_func_dict[i]() for i in layer_act_funcs]
         input_size = input_size_
         for inx, i in enumerate(layer_node_nums):
             self.mod_dict.add_module(str(inx), nn.Linear(input_size, i))
@@ -20,7 +20,7 @@ class MLP(ModelBase):
 
     def forward(self, input_):
         input_data = input_
-        for layer, act in zip(self.mod_list, self.acts):
+        for (_, layer), act in zip(self.mod_dict.items(), self.acts):
             input_data = layer(input_data)
             input_data = act(input_data)
         return input_data
