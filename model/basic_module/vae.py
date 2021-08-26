@@ -4,6 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch
 
+
 class VAE(ModelBase):
     def __init__(self, config):
         super(VAE, self).__init__()

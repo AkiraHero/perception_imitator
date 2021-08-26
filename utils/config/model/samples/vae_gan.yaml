@@ -4,7 +4,7 @@ paras:
     discriminator:
       config_file: /home/xlju/Project/ModelSimulator/utils/config/model/samples/mlp.yaml
       model_class: MLP
-    encoder:
+    generator:
       config_file: /home/xlju/Project/ModelSimulator/utils/config/model/samples/vae.yaml
       model_class: VAE
     target_model:
