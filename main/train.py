@@ -1,7 +1,7 @@
 from utils.config.Configuration import Configuration
-from model.ModelFactory import ModelFactory
-from dataset.DatasetFactory import DatasetFactory
-from trainer.TrainerFactory import TrainerFactory
+from model.model_factory import ModelFactory
+from dataset.dataset_factory import DatasetFactory
+from trainer.trainer_factory import TrainerFactory
 
 
 if __name__ == '__main__':

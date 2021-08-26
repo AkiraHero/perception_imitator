@@ -3,7 +3,7 @@ from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 
 
-class MinistDataset(DatasetBase):
+class Cifar10Dataset(DatasetBase):
     def __init__(self, config):
         super().__init__()
         self._is_train = config['paras']['for_train']
@@ -11,10 +11,13 @@ class MinistDataset(DatasetBase):
         self._batch_size = config['paras']['batch_size']
         self._shuffle = config['paras']['shuffle']
         self._num_workers = config['paras']['num_workers']
-        self._embedding_dataset = datasets.MNIST(  # train_set
+        self._embedding_dataset = datasets.CIFAR10( # test_set
             root=self._data_root,
             train=self._is_train,
-            transform=transforms.ToTensor(),
+            transform=transforms.Compose([
+                transforms.ToTensor(),
+                # transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+            ]),
             download=False
         )
 

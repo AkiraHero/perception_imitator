@@ -22,6 +22,12 @@ class ModelBase(nn.Module):
                 v.set_device(device)
         self.to(self.device)
 
+    def set_eval(self):
+        self.eval()
+        for k, v in self.mod_dict.items():
+            if 'eval' in v.__dir__():
+                v.eval()
+
     @staticmethod
     def check_config(config):
         required_paras = ['name', 'paras']

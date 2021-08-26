@@ -1,0 +1,11 @@
+dataset:
+  batch_size: 3
+  config_file: /home/xlju/Project/ModelSimulator/utils/config/samples/sample1/minist.yaml
+  dataset_class: MinistDataset
+logging:
+  ckpt_eph_interval: 2
+  path: ''
+  suffix: ''
+model:
+  config_file: /home/xlju/Project/ModelSimulator/utils/config/samples/sample1/cnn.yaml
+  model_class: CNN

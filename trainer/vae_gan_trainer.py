@@ -73,7 +73,7 @@ class VAEGANTrainer(TrainerBase):
                 errD_real = criterion(output, target_model_label)
                 # Calculate gradients for D in backward pass
                 # errD_real.backward()
-                # D_x = output.mean().item()
+                D_x = output.mean().item()
 
                 # Train with all-fake batch
                 errD_fake = 0
@@ -95,7 +95,7 @@ class VAEGANTrainer(TrainerBase):
                 errD_fake = criterion(output2, generated_label)
                 # Calculate the gradients for this batch
                 # errD_fake.backward()
-                # D_G_z1 = output.mean().item()
+                D_G_z1 = output.mean().item()
                 # Add the gradients from the all-real and all-fake batches
                 errD = errD_real + errD_fake  # 希望对真实数据接近label1，对于假数据接近label0
                 # # Update D
@@ -122,7 +122,7 @@ class VAEGANTrainer(TrainerBase):
                 errG = errG1.add_(errG_KLD)
                 errG.backward()
 
-                # D_G_z2 = output.mean().item()
+                D_G_z2 = output.mean().item()
 
                 # Update G
                 self.generator_optimizer.step()
@@ -131,11 +131,10 @@ class VAEGANTrainer(TrainerBase):
                 print(
                     f'Epoch: [{epoch + 1:0>{len(str(epoch))}}/{self.max_epoch}]',
                     f'Step: [{step}/{len(self.data_loader)}]',
-                #     f'Loss-D: {errD.item():.4f}',
-                #     f'Loss-G: {errG.item():.4f}',
-                #     f'D(x): {D_x:.4f}',
-                #     f'D(G(z)): [{D_G_z1:.4f}/{D_G_z2:.4f}]',
-                #     end='\r'
+                    f'Loss-D: {errD.item():.4f}',
+                    f'Loss-G: {errG.item():.4f}',
+                    f'D(x): {D_x:.4f}',
+                    f'D(G(z)): [{D_G_z1:.4f}/{D_G_z2:.4f}]'
                 )
                 # pass
                 # # Save Losses for plotting later
