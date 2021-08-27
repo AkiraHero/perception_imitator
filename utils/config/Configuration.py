@@ -10,20 +10,40 @@ treat the configuration as a tree
 
 class Configuration:
     def __init__(self):
+        self.config_root_dir = None
         self.root_config = None
         self.expanded_config = None
         self.all_related_config_files = []
+        self.dir_checked = False
 
         self.dataset_config = None
         self.training_config = None
         self.testing_config = None
         self.logging_config = None
         self.model_config = None
-        pass
+
+    def check_config_dir(self, config_dir):
+        if not os.path.isdir(config_dir):
+            raise IsADirectoryError(f'{config_dir} is not a valid directory.')
+        # check subconfig dir
+        if not os.path.isdir(os.path.join(config_dir, "dataset")):
+            raise IsADirectoryError(f'{config_dir}/dataset is not a valid directory.')
+        if not os.path.isdir(os.path.join(config_dir, "model")):
+            raise IsADirectoryError(f'{config_dir}/model is not a valid directory.')
+        if not os.path.isfile(os.path.join(config_dir, "root_config.yaml")):
+            raise IsADirectoryError(f'{config_dir}/root_config.yaml is not a valid/existing file.')
+        self.dir_checked = True
+
+    def load_config(self, config_dir):
+        self.config_root_dir = config_dir
+        self.check_config_dir(self.config_root_dir)
+        if self.dir_checked:
+            self._load_root_config_file("root_config.yaml")
+
 
     def get_shell_args_train(self):
         parser = argparse.ArgumentParser(description='arg parser')
-        parser.add_argument('--cfg_file', required=True, type=str, default=None, help='specify the config for training')
+        parser.add_argument('--cfg_dir', required=True, type=str, default=None, help='specify the config for training')
         parser.add_argument('--batch_size', type=int, default=None, required=False, help='batch size for training')
         parser.add_argument('--epochs', type=int, default=None, required=False,
                             help='number of epochs to train for')
@@ -73,13 +93,13 @@ class Configuration:
         args = parser.parse_args()
         return args
 
-    @staticmethod
-    def _load_yaml(file):
-        with open(file, 'r') as f:
+    def _load_yaml(self, file):
+        abs_path = os.path.join(self.config_root_dir, file)
+        with open(abs_path, 'r') as f:
             return yaml.safe_load(f)
 
-    def load_config_file(self, config_file):
-        self.root_config = Configuration._load_yaml(config_file)
+    def _load_root_config_file(self, config_file):
+        self.root_config = self._load_yaml(config_file)
         self.expanded_config = self.root_config.copy()
         self.all_related_config_files.append(config_file)
         self._expand_config(self.expanded_config)
@@ -107,7 +127,7 @@ class Configuration:
             return False
         if 'config_file' in config_dict.keys() and isinstance(config_dict['config_file'], str):
             file_name = config_dict['config_file']
-            expanded = Configuration._load_yaml(file_name)
+            expanded = self._load_yaml(file_name)
             self._expand_config(expanded)
             self.all_related_config_files.append(file_name)
             config_dict['config_file'] = {
@@ -181,8 +201,9 @@ class Configuration:
     # only overwrite the first-found one on condition of equal keys
     def overwrite_config_by_shell_args(self, args):
         for name, value in args._get_kwargs():
-            node, parents = self.find_node(name)
-            if node is not None:
-                self.overwrite_value_by_keywords(parents, name, value)
+            if value is not None:
+                node, parents = self.find_node(name)
+                if node is not None:
+                    self.overwrite_value_by_keywords(parents, name, value)
 
 

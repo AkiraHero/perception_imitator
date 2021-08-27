@@ -16,7 +16,7 @@ class Cifar10Dataset(DatasetBase):
             train=self._is_train,
             transform=transforms.Compose([
                 transforms.ToTensor(),
-                # transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
             ]),
             download=False
         )

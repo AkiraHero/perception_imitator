@@ -8,8 +8,8 @@ import matplotlib.pyplot as plt
 
 '''
 reproduce the minist classifier precision curve
-using config sample: /home/xlju/Project/ModelSimulator/utils/config/samples/sample1
-Usage: python *.py --cfg_file /home/xlju/Project/ModelSimulator/utils/config/samples/sample1/test_simple_model.yaml
+using config sample: /home/xlju/Project/ModelSimulator/utils/config/samples/sample2
+Usage: python *.py --cfg_dir /home/xlju/Project/ModelSimulator/utils/config/samples/sample2
 '''
 
 right_prediction_dict = OrderedDict()
@@ -29,16 +29,17 @@ def set_to_counter(model_out, gt):
         whole_class_num[k] = whole_class_num[k] + 1
 
 
+
 if __name__ == '__main__':
     # manage config
     config = Configuration()
     args = config.get_shell_args_train()
-    config.load_config_file(args.cfg_file)
+    config.load_config(args.cfg_dir)
     config.overwrite_config_by_shell_args(args)
 
     # instantiating all modules by non-singleton factory
     model = ModelFactory.get_model(config.model_config)
-    paras = torch.load("/home/xlju/Project/ModelSimulator/model_paras/param_minist_5.pt")
+    paras = torch.load("../../model_paras/param_cifar_10.pt")
     model.load_state_dict(paras)
     model.set_eval()
     dataset = DatasetFactory.get_data_loader(config.dataset_config)

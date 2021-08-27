@@ -1,6 +1,6 @@
 from dataset.dataset_base import DatasetBase
 from dataset.minist_dataset import MinistDataset
-
+from dataset.cifar10_dataset import Cifar10Dataset
 
 class DatasetFactory:
     def __init__(self):
