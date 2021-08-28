@@ -52,7 +52,7 @@ class VAEGANTrainer(TrainerBase):
 
                 # process img
                 imgs = tf_normalize(imgs).to(device=self.device)
-                resized_img_ = tf_resize(tf_normalize(imgs))
+                resized_img_ = tf_resize()
                 img_shape = resized_img_.shape
                 pic_len = img_shape[1] * img_shape[2] * img_shape[3]
                 flattened_img_vector = resized_img_.squeeze().reshape((cur_batch_size, 1, pic_len))

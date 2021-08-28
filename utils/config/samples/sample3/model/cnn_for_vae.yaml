@@ -33,11 +33,4 @@ paras:
     paras:
       act_func: relu
       node_num: 120
-  - class: linear
-    paras:
-      act_func: relu
-      node_num: 84
-  - class: linear
-    paras:
-      act_func: none
-      node_num: 10
+

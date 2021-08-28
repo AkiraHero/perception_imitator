@@ -1,6 +1,7 @@
 from dataset.dataset_base import DatasetBase
 from dataset.minist_dataset import MinistDataset
 from dataset.cifar10_dataset import Cifar10Dataset
+from dataset.kitti_3d_object_dataset import Kitti3dObjectDataset
 
 class DatasetFactory:
     def __init__(self):
