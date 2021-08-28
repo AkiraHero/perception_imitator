@@ -17,7 +17,7 @@ class ModelBase(nn.Module):
 
     def set_device(self, device):
         self.device = device
-        for k, v in self.mod_dict.items():
+        for k, v in self._modules.items():
             if 'set_device' in v.__dir__():
                 v.set_device(device)
         self.to(self.device)

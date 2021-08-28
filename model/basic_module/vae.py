@@ -9,19 +9,18 @@ class VAE(ModelBase):
     def __init__(self, config):
         super(VAE, self).__init__()
         self.encoder = ModelFactory.ModelFactory.get_model(config['paras']['submodules']['encoder'])
-        self.mod_dict.add_module("encoder", self.encoder)
-        self.mod_dict.add_module('fc21', nn.Linear(120, 20))
-        self.mod_dict.add_module('fc22', nn.Linear(120, 20))
-        self.mod_dict.add_module('fc3', nn.Linear(20, 100))
-        self.mod_dict.add_module('fc4', nn.Linear(100, 10))
+        self.fc21 = nn.Linear(120, 20)
+        self.fc22 = nn.Linear(120, 20)
+        self.fc3 = nn.Linear(20, 100)
+        self.fc4 = nn.Linear(100, 10)
 
     def forward(self, x):
         x = self.encoder(x)
-        mu = self.mod_dict['fc21'](x)
-        log_var = self.mod_dict['fc22'](x)
+        mu = self.fc21(x)
+        log_var = self.fc22(x)
         z = self.reparameterize(mu, log_var)
-        x = F.relu(self.mod_dict['fc3'](z))
-        x = self.mod_dict['fc4'](x)  # x为10个类别的得
+        x = F.relu(self.fc3(z))
+        x = self.fc4(x)  # x为10个类别的得
         return x, mu, log_var
 
     def reparameterize(self, mu, log_var):    # 最后得到的是u(x)+sigma(x)*N(0,I)

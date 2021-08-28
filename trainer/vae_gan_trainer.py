@@ -44,18 +44,18 @@ class VAEGANTrainer(TrainerBase):
 
         for epoch in range(self.max_epoch):
             for step, data in enumerate(self.data_loader):
-                imgs = data[0]
+                imgs = data[0].to(device=self.device)
                 # gt_labels = data[1]
                 cur_batch_size = data[0].shape[0]
 
-                self.discriminator_optimizer.zero_grad()
-
+                # self.discriminator_optimizer.zero_grad()
+                self.model.discriminator.zero_grad()
                 # process img
-                imgs = tf_normalize(imgs).to(device=self.device)
                 resized_img_ = tf_resize(imgs)
-                img_shape = resized_img_.shape
+                img_normalized = tf_normalize(resized_img_)
+                img_shape = img_normalized.shape
                 pic_len = img_shape[1] * img_shape[2] * img_shape[3]
-                flattened_img_vector = resized_img_.squeeze().reshape((cur_batch_size, 1, pic_len))
+                flattened_img_vector = img_normalized.squeeze().reshape((cur_batch_size, 1, pic_len))
 
                 # Get output of target_model
                 generator_input = imgs
@@ -72,13 +72,13 @@ class VAEGANTrainer(TrainerBase):
                 # Calculate loss on all-real batch
                 errD_real = criterion(output, target_model_label)
                 # Calculate gradients for D in backward pass
-                # errD_real.backward()
+                errD_real.backward()
                 D_x = output.mean().item()
 
                 # Train with all-fake batch
                 errD_fake = 0
 
-                generator_input = imgs
+                # generator_input = imgs
                 # Generate fake image batch with G
                 G_score, mu, logvar = self.model.generator(generator_input)  # 得到每一类的得分
                 # _, G_score = torch.max(G_score.data, 1)
@@ -94,19 +94,20 @@ class VAEGANTrainer(TrainerBase):
                 # Calculate D's loss on the all-fake batch
                 errD_fake = criterion(output2, generated_label)
                 # Calculate the gradients for this batch
-                # errD_fake.backward()
+                errD_fake.backward()
                 D_G_z1 = output.mean().item()
                 # Add the gradients from the all-real and all-fake batches
                 errD = errD_real + errD_fake  # 希望对真实数据接近label1，对于假数据接近label0
                 # # Update D
-                errD.backward()
+                # errD.backward()
                 self.discriminator_optimizer.step()
 
                 ############################
                 # (2) Update G network: maximize log(D(G(z)))
                 ###########################
                 # netG.zero_grad()
-                self.generator_optimizer.zero_grad()
+                # self.generator_optimizer.zero_grad()
+                self.model.generator.zero_grad()
 
                 # real_fake_label_fullfilled.fill_(real_label)  # fake labels are real for generator cost
                 # Since we just updated D, perform another forward pass of all-fake batch through D
@@ -149,8 +150,8 @@ class VAEGANTrainer(TrainerBase):
                 # if errG < loss_tep1 and epoch > 10:
                 #     torch.save(netG.state_dict(), './results/VAE_Mnist2/model_errG.pt')
                 #     loss_tep1 = errG
-                # if epoch % 10 == 0:
-        torch.save(self.model.generator.state_dict(), '/home/xlju/Project/ModelSimulator/output/gen_model.pt')
+                if epoch % 10 == 0:
+                    torch.save(self.model.generator.state_dict(), '/home/xlju/Project/ModelSimulator/output/gen_model' + str(epoch) + ".pt")
 
 
 
