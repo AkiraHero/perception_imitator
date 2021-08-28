@@ -16,6 +16,7 @@ class Cifar10Dataset(DatasetBase):
             train=self._is_train,
             transform=transforms.Compose([
                 transforms.ToTensor(),
+                # todo: this transform on initial dataset should be moved to trainer.
                 transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
             ]),
             download=False

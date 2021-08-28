@@ -1,0 +1,10 @@
+dataset:
+  config_file: dataset/cifar10.yaml
+  dataset_class: Cifar10Dataset
+logging:
+  ckpt_eph_interval: 2
+  path: ''
+  suffix: ''
+model:
+  config_file: model/cnn.yaml
+  model_class: CNN
