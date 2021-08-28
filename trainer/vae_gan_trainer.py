@@ -52,7 +52,7 @@ class VAEGANTrainer(TrainerBase):
 
                 # process img
                 imgs = tf_normalize(imgs).to(device=self.device)
-                resized_img_ = tf_resize()
+                resized_img_ = tf_resize(imgs)
                 img_shape = resized_img_.shape
                 pic_len = img_shape[1] * img_shape[2] * img_shape[3]
                 flattened_img_vector = resized_img_.squeeze().reshape((cur_batch_size, 1, pic_len))
@@ -150,7 +150,7 @@ class VAEGANTrainer(TrainerBase):
                 #     torch.save(netG.state_dict(), './results/VAE_Mnist2/model_errG.pt')
                 #     loss_tep1 = errG
                 # if epoch % 10 == 0:
-                #     torch.save(netG.state_dict(), './results/VAE_Mnist2/model_%d.pt' % (epoch))
+        torch.save(self.model.generator.state_dict(), '/home/xlju/Project/ModelSimulator/output/gen_model.pt')
 
 
 

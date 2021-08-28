@@ -1,3 +1,4 @@
+# for running get_target_model_statistics_minist.py
 dataset:
   config_file: dataset/minist.yaml
   dataset_class: MinistDataset

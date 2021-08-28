@@ -1,3 +1,4 @@
+# for running get_target_model_statistics_cifar.py
 dataset:
   config_file: dataset/cifar10.yaml
   dataset_class: Cifar10Dataset
