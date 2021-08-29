@@ -42,12 +42,12 @@ if __name__ == '__main__':
     # instantiating all modules by non-singleton factory
     model = ModelFactory.get_model(config.model_config)
 
-    # paras_final = torch.load("/home/xlju/Project/ModelSimulator/output/model_final.pt")
+    # paras_final = torch.load("/home/xlju/Project/VAE_Mnist2/model_50.pt")
     # ref = model.generator.state_dict()
     # for (k1, v1), (k2, v2) in zip(ref.items(), paras_final.items()):
     #     ref[k1] = v2
 
-    paras = torch.load("/home/xlju/Project/ModelSimulator/output/gen_model90.pt")
+    paras = torch.load("/home/xlju/Project/ModelSimulator/output/gen_model60.pt")
     model.generator.load_state_dict(paras)
     model.set_eval()
     dataset = DatasetFactory.get_data_loader(config.dataset_config)
