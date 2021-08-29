@@ -11,7 +11,13 @@ class MLP(ModelBase):
         assert isinstance(layer_node_nums, list)
         assert isinstance(layer_act_funcs, list)
         assert len(layer_node_nums) == len(layer_act_funcs)
-        self.acts = [act_func_dict[i]() for i in layer_act_funcs]
+        self.acts = []
+        for i in layer_act_funcs:
+            func = act_func_dict[i]
+            if func is not None:
+                self.acts.append(func())
+            else:
+                self.acts.append(None)
         input_size = input_size_
         for inx, i in enumerate(layer_node_nums):
             self.mod_dict.add_module(str(inx), nn.Linear(input_size, i))
@@ -22,7 +28,8 @@ class MLP(ModelBase):
         input_data = input_
         for (_, layer), act in zip(self.mod_dict.items(), self.acts):
             input_data = layer(input_data)
-            input_data = act(input_data)
+            if act is not None:
+                input_data = act(input_data)
         return input_data
 
     @staticmethod
