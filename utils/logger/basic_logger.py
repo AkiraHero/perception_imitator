@@ -3,6 +3,7 @@ import os
 import datetime
 import logging
 import pickle
+from model.model_base import ModelBase
 from utils.config.Configuration import Configuration
 from tensorboardX import SummaryWriter
 
@@ -31,10 +32,12 @@ class BasicLogger:
         os.makedirs(self._cur_instance_root_log_dir)
         self._tensor_board_log_dir = os.path.join(self.root_log_dir, self._cur_instance_root_log_dir, "tensor_board")
         self._data_log_dir = os.path.join(self.root_log_dir, self._cur_instance_root_log_dir, "data_log")
+        self._model_para_log_dir = os.path.join(self.root_log_dir, self._cur_instance_root_log_dir, "model_paras_log")
         os.makedirs(self._tensor_board_log_dir)
         os.makedirs(self._data_log_dir)
+        os.makedirs(self._model_para_log_dir)
         self._tensor_board_writer = SummaryWriter(self._tensor_board_log_dir)
-        self._data_pickle_file = os.path.join(self._data_log_dir, "data_bin.pickle")
+        self._data_pickle_file = os.path.join(self._data_log_dir, "data_bin.pkl")
 
     def log_config(self, config):
         if not isinstance(config, Configuration):
@@ -51,7 +54,7 @@ class BasicLogger:
             return
 
     def _add_to_pickle(self, status, data_name, data_content):
-        with open(self._data_pickle_file, 'a+') as f:
+        with open(self._data_pickle_file, 'ar+') as f:
             pickle.dump({
                 "status": status,
                 "name": data_name,
@@ -65,6 +68,21 @@ class BasicLogger:
         if add_to_tensorboard:
             self._tensor_board_writer.add_scalar(data_name, data_content)
         self._add_to_pickle(status, data_name, data_content)
+
+    def log_model_params(self, model):
+        if not isinstance(model, ModelBase):
+            raise TypeError("input type must have class attribute of ModelBase!")
+        status = self._status_hook()
+        para_dict = {
+            "status": status,
+            "model_paras": model.state_dict()
+        }
+        date_time_str = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
+        pickle_name = "-".join(["model_ckpt", date_time_str]) + ".pkl"
+        with open(pickle_name, 'wr') as f:
+            pickle.dump(para_dict, f)
+        logging.info(f'Log model state dict as: {pickle_name}')
+
 
     def register_status_hook(self, fn):
         self._status_hook = fn
