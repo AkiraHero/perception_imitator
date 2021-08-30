@@ -1,0 +1,13 @@
+name: VAEGANModel
+paras:
+  submodules:
+    discriminator:
+      config_file: model/simulator_model/mlp.yaml
+      model_class: MLP
+    generator:
+      config_file: model/simulator_model/vae.yaml
+      model_class: VAE
+    target_model:
+      config_file: model/target_model/openpcdet_pvrcnn.yaml
+      model_class: OpenPCDetPVRCNN
+      model_para_file: /home/xlju/Project/ModelSimulator/model_paras/pv_rcnn/pv_rcnn_8369.pth

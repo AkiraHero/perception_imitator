@@ -11,5 +11,5 @@ if __name__ == '__main__':
     config.overwrite_config_by_shell_args(args)
 
     # instantiating all modules by non-singleton factory
-    dataset = DatasetFactory.get_data_loader(config.dataset_config)
+    dataset = DatasetFactory.get_dataset(config.dataset_config)
     pass

@@ -9,7 +9,8 @@ class VAEGANModel(ModelBase):
         self.discriminator = ModelFactory.ModelFactory.get_model(config['paras']['submodules']['discriminator'])
         self.target_model = ModelFactory.ModelFactory.get_model(config['paras']['submodules']['target_model'])
         paras = torch.load(config['paras']['submodules']['target_model']['model_para_file'])
-        self.target_model.load_state_dict(paras)
+        self.target_model.load_model_paras(paras)
+        pass
 
     def forward(self):
         raise NotImplementedError

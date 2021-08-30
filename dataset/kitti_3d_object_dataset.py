@@ -34,3 +34,6 @@ class Kitti3dObjectDataset(DatasetBase):
             shuffle=self._shuffle,
             num_workers=self._num_workers,
         )
+
+    def get_embedding(self):
+        return self._embedding_dataset

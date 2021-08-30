@@ -12,8 +12,8 @@ if __name__ == '__main__':
     config.overwrite_config_by_shell_args(args)
 
     # instantiating all modules by non-singleton factory
+    dataset = DatasetFactory.get_singleton_dataset(config.dataset_config)
     model = ModelFactory.get_model(config.model_config)
-    dataset = DatasetFactory.get_data_loader(config.dataset_config)
     trainer = TrainerFactory.get_trainer(config.training_config)
 
     trainer.set_model(model)

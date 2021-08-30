@@ -50,7 +50,7 @@ if __name__ == '__main__':
     paras = torch.load("/home/xlju/Project/ModelSimulator/output/gen_model60.pt")
     model.generator.load_state_dict(paras)
     model.set_eval()
-    dataset = DatasetFactory.get_data_loader(config.dataset_config)
+    dataset = DatasetFactory.get_dataset(config.dataset_config)
     data_loader = dataset.get_data_loader()
 
     for step, data in enumerate(data_loader):

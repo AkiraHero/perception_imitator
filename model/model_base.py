@@ -28,6 +28,16 @@ class ModelBase(nn.Module):
             if 'eval' in v.__dir__():
                 v.eval()
 
+    def set_attr(self, attr, value):
+        pass
+
+    def load_model_paras(self, para_dict):
+        super(ModelBase, self).load_state_dict(para_dict)
+
+    def load_state_dict(self, dict):
+        raise AssertionError("The load_state_dict function has been forbidden in this model system. "
+                             "Please use load_model_paras instead.")
+
     @staticmethod
     def check_config(config):
         required_paras = ['name', 'paras']

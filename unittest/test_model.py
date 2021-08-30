@@ -1,5 +1,5 @@
-from model.basic_module.mlp import MLP
-from model.basic_module.cnn import CNN
+from model.basic.mlp import MLP
+from model.basic.cnn import CNN
 from model.model_base import ModelBase
 
 import yaml
