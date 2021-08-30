@@ -1,6 +1,6 @@
 from utils.config.Configuration import Configuration
-from model.model_factory import ModelFactory
-from dataset.dataset_factory import DatasetFactory
+from factory.model_factory import ModelFactory
+from factory.dataset_factory import DatasetFactory
 from collections import OrderedDict
 import matplotlib.pyplot as plt
 import torch

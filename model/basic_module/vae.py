@@ -1,5 +1,5 @@
 from model.model_base import ModelBase
-import model.model_factory as ModelFactory
+import factory.model_factory as ModelFactory
 import torch.nn as nn
 import torch.nn.functional as F
 import torch

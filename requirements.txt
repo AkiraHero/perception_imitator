@@ -4,4 +4,4 @@ numpy
 pyyaml
 torchvision
 matplotlib
-cv2
+tensorboardX

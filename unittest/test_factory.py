@@ -1,4 +1,4 @@
-from dataset.dataset_factory import DatasetFactory
+from factory.dataset_factory import DatasetFactory
 
 
 data_config = {}

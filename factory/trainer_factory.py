@@ -1,6 +1,5 @@
-from trainer.trainer_base import TrainerBase
-from trainer.simple_trainer import SimpleTrainer
-from trainer.vae_gan_trainer import VAEGANTrainer
+from trainer import *
+
 
 class TrainerFactory:
     def __init__(self):

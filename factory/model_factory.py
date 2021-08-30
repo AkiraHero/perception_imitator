@@ -1,12 +1,4 @@
-# todo : change these import to a more automatic fashion
-from model.model_base import ModelBase
-from model.basic_module.cnn import CNN
-from model.basic_module.mlp import MLP
-from model.basic_module.vae import VAE
-from model.top.vae_gan_model import VAEGANModel
-from model.basic_module.mlp import MLP
-from model.basic_module.vae import VAE
-from model.basic_module.cnn import CNN
+from model import *
 from utils.config.Configuration import Configuration
 
 class ModelFactory:

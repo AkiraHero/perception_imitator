@@ -2,11 +2,11 @@ from trainer.trainer_base import TrainerBase
 import torch.nn as nn
 import torch
 from torchvision import transforms
-
+from tensorboardX import SummaryWriter
 
 class VAEWGANTrainer(TrainerBase):
     def __init__(self, config):
-        super(VAEGANTrainer, self).__init__()
+        super(VAEWGANTrainer, self).__init__()
         self.max_epoch = config['epoch']
         self.optimizer_config = config['optimizer']
         self.device = torch.device(config['device'])
@@ -30,6 +30,7 @@ class VAEWGANTrainer(TrainerBase):
         self.set_optimizer(self.optimizer_config)
         self.model.set_device(self.device)
         self.data_loader = self.dataset.get_data_loader()
+        writer = SummaryWriter()
 
         # data transform
         tf_normalize = transforms.Normalize(0.5, 0.5)
@@ -59,8 +60,13 @@ class VAEWGANTrainer(TrainerBase):
                 G_score = G_score.unsqueeze(-2)
 
                 discriminator_input_fake = torch.cat((flattened_img_vector, G_score), 2)
-                errD = -torch.mean(self.model.discriminator(discriminator_input_real)) + \
-                       torch.mean(self.model.discriminator(discriminator_input_fake.detach()))
+                err_real = -torch.mean(self.model.discriminator(discriminator_input_real))
+                err_fake = torch.mean(self.model.discriminator(discriminator_input_fake.detach()))
+                errD = err_real + err_fake
+
+                writer.add_scalar("errD", errD, step)
+                writer.add_scalar("err_real", err_real, step)
+                writer.add_scalar("err_fake", err_fake, step)
 
                 # # Update D
                 errD.backward()
@@ -77,6 +83,7 @@ class VAEWGANTrainer(TrainerBase):
                     new_G_score = new_G_score.unsqueeze(-2)
                     new_discriminator_input_fake = torch.cat((flattened_img_vector, new_G_score), 2)
                     errG = -torch.mean(self.model.discriminator(new_discriminator_input_fake).view(-1))
+                    writer.add_scalar("errG", errG, step)
                     errG.backward()
                     # Update G
                     self.generator_optimizer.step()
