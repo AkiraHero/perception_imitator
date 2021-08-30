@@ -7,6 +7,7 @@ import shutil
 treat the configuration as a tree
 '''
 
+#todo: control the access of members
 
 class Configuration:
     def __init__(self):
@@ -39,6 +40,11 @@ class Configuration:
         self.check_config_dir(self.config_root_dir)
         if self.dir_checked:
             self._load_root_config_file("root_config.yaml")
+
+    def get_complete_config(self):
+        if self.expanded_config is not None:
+            return self.expanded_config.copy()
+        raise TypeError("no complete config found!")
 
 
     def get_shell_args_train(self):

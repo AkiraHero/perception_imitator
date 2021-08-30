@@ -2,6 +2,7 @@ from utils.config.Configuration import Configuration
 from factory.model_factory import ModelFactory
 from factory.dataset_factory import DatasetFactory
 from factory.trainer_factory import TrainerFactory
+from utils.logger.basic_logger import BasicLogger
 
 
 if __name__ == '__main__':
@@ -10,6 +11,7 @@ if __name__ == '__main__':
     args = config.get_shell_args_train()
     config.load_config(args.cfg_dir)
     config.overwrite_config_by_shell_args(args)
+    logger = BasicLogger.get_logger(config)
 
     # instantiating all modules by non-singleton factory
     dataset = DatasetFactory.get_singleton_dataset(config.dataset_config)

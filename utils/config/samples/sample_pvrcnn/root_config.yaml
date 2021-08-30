@@ -3,8 +3,8 @@ dataset:
   dataset_class: Kitti3dObjectDataset
 logging:
   ckpt_eph_interval: 2
-  path: ''
-  suffix: ''
+  path: '/home/xlju/Project/ModelSimulator/output'
+  suffix: 'test_logger'
 model:
   config_file: model/simulator_model/vae_gan.yaml
   model_class: VAEGANModel
@@ -27,4 +27,3 @@ training:
       lr: 0.0001
     type: Adam
   trainer_class: VAEGANTrainer
-  tensorboard_out_path: default

@@ -2,8 +2,6 @@ from trainer.trainer_base import TrainerBase
 import torch.nn as nn
 import torch
 from torchvision import transforms
-from tensorboardX import SummaryWriter
-
 
 class VAEGANTrainer(TrainerBase):
     def __init__(self, config):
@@ -11,7 +9,6 @@ class VAEGANTrainer(TrainerBase):
         self.max_epoch = config['epoch']
         self.optimizer_config = config['optimizer']
         self.device = torch.device(config['device'])
-        self.tensorboard_out_path = config['tensorboard_out_path']
         self.generator_optimizer = None
         self.discriminator_optimizer = None
         self.data_loader = None
@@ -30,7 +27,6 @@ class VAEGANTrainer(TrainerBase):
         self.set_optimizer(self.optimizer_config)
         self.model.set_device(self.device)
         self.data_loader = self.dataset.get_data_loader()
-        writer = SummaryWriter(log_dir=self.tensorboard_out_path)
 
         # 初始化Optimizers和损失函数
         criterion = nn.BCELoss()  # Initialize BCELoss function
@@ -44,11 +40,13 @@ class VAEGANTrainer(TrainerBase):
         # data transform
         tf_normalize = transforms.Normalize(0.5, 0.5)
         tf_resize = transforms.Resize(14)
-        global_step = 0
+        self.global_step = 0
 
         for epoch in range(self.max_epoch):
+            self.epoch = epoch
             for step, data in enumerate(self.data_loader):
-                global_step += 1
+                self.step = step
+                self.global_step += 1
 
                 imgs = data[0].to(device=self.device)
                 # gt_labels = data[1]
@@ -106,9 +104,9 @@ class VAEGANTrainer(TrainerBase):
                 errD = errD_real + errD_fake  # 希望对真实数据接近label1，对于假数据接近label0
                 # # Update D
                 # errD.backward()
-                writer.add_scalar("errD", errD, global_step)
-                writer.add_scalar("err_real", errD_real, global_step)
-                writer.add_scalar("err_fake", errD_fake, global_step)
+                self.logger.log_data("errD", errD)
+                self.logger.log_data("err_real", errD_real)
+                self.logger.log_data("err_fake", errD_fake)
                 self.discriminator_optimizer.step()
 
                 ############################
@@ -131,8 +129,8 @@ class VAEGANTrainer(TrainerBase):
 
                 errG = errG1.add_(errG_KLD)
                 errG.backward()
-                writer.add_scalar("err_G", errG, global_step)
-                writer.add_scalar("err_G1", errG1, global_step)
+                self.logger.log_data("err_G", errG)
+                self.logger.log_data("err_G1", errG1)
 
 
                 D_G_z2 = output.mean().item()
