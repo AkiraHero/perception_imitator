@@ -27,3 +27,4 @@ training:
       lr: 0.0001
     type: Adam
   trainer_class: VAEGANTrainer
+  tensorboard_out_path: default

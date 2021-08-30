@@ -1,4 +1,4 @@
-# for train vae-gan model using main/train.py on minist dataset
+# for train vae-wgan model using main/train.py on minist dataset
 dataset:
   config_file: dataset/minist.yaml
   dataset_class: MinistDataset

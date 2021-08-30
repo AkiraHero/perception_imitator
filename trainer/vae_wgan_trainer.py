@@ -10,6 +10,7 @@ class VAEWGANTrainer(TrainerBase):
         self.max_epoch = config['epoch']
         self.optimizer_config = config['optimizer']
         self.device = torch.device(config['device'])
+        self.tensorboard_out_path = config['tensorboard_out_path']
         self.n_critic = config['n_critic']
         self.weight_clip = config['weight_clip']
         self.generator_optimizer = None
@@ -30,13 +31,15 @@ class VAEWGANTrainer(TrainerBase):
         self.set_optimizer(self.optimizer_config)
         self.model.set_device(self.device)
         self.data_loader = self.dataset.get_data_loader()
-        writer = SummaryWriter()
+        writer = SummaryWriter(log_dir=self.tensorboard_out_path)
 
         # data transform
         tf_normalize = transforms.Normalize(0.5, 0.5)
         tf_resize = transforms.Resize(14)
+        global_step = 0
         for epoch in range(self.max_epoch):
             for step, data in enumerate(self.data_loader):
+                global_step += 1
                 imgs = data[0].to(device=self.device)
                 # gt_labels = data[1]
                 cur_batch_size = data[0].shape[0]
@@ -64,9 +67,9 @@ class VAEWGANTrainer(TrainerBase):
                 err_fake = torch.mean(self.model.discriminator(discriminator_input_fake.detach()))
                 errD = err_real + err_fake
 
-                writer.add_scalar("errD", errD, step)
-                writer.add_scalar("err_real", err_real, step)
-                writer.add_scalar("err_fake", err_fake, step)
+                writer.add_scalar("errD", errD, global_step)
+                writer.add_scalar("errD_real", err_real, global_step)
+                writer.add_scalar("errD_fake", err_fake, global_step)
 
                 # # Update D
                 errD.backward()
@@ -83,7 +86,7 @@ class VAEWGANTrainer(TrainerBase):
                     new_G_score = new_G_score.unsqueeze(-2)
                     new_discriminator_input_fake = torch.cat((flattened_img_vector, new_G_score), 2)
                     errG = -torch.mean(self.model.discriminator(new_discriminator_input_fake).view(-1))
-                    writer.add_scalar("errG", errG, step)
+                    writer.add_scalar("errG", errG, global_step)
                     errG.backward()
                     # Update G
                     self.generator_optimizer.step()
