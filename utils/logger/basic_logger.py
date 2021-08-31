@@ -13,11 +13,19 @@ from tensorboardX import SummaryWriter
 class BasicLogger:
     logger = None
 
+    def __new__(cls, *args, **kwargs):
+        if cls.logger is None:
+            cls.logger = super(BasicLogger, cls).__new__(cls)
+            cls.logger.__initialized = False
+        return cls.logger
+
     def __init__(self, config):
         # super(BasicLogger, self).__init__(__name__)
         # ch = logging.StreamHandler()
         # formatter = logging.Formatter('%(asctime)s [%(levelname)s] %(name)s: %(message)s')
         # ch.setFormatter(formatter)
+        if self.__initialized:
+            return
         if not isinstance(config, Configuration):
             raise TypeError("input must be the Configuration type!")
         config_dict = config.get_complete_config()
@@ -38,6 +46,7 @@ class BasicLogger:
         os.makedirs(self._model_para_log_dir)
         self._tensor_board_writer = SummaryWriter(self._tensor_board_log_dir)
         self._data_pickle_file = os.path.join(self._data_log_dir, "data_bin.pkl")
+        self.__initialized = True
 
     def log_config(self, config):
         if not isinstance(config, Configuration):
@@ -82,7 +91,6 @@ class BasicLogger:
         with open(pickle_name, 'wr') as f:
             pickle.dump(para_dict, f)
         logging.info(f'Log model state dict as: {pickle_name}')
-
 
     def register_status_hook(self, fn):
         self._status_hook = fn
