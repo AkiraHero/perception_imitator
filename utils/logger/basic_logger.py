@@ -37,10 +37,10 @@ class BasicLogger:
         self.log_suffix = config_dict['logging']['suffix']
         date_time_str = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
         self._cur_instance_root_log_dir = "-".join([date_time_str, self.log_suffix])
-        os.makedirs(self._cur_instance_root_log_dir)
         self._tensor_board_log_dir = os.path.join(self.root_log_dir, self._cur_instance_root_log_dir, "tensor_board")
         self._data_log_dir = os.path.join(self.root_log_dir, self._cur_instance_root_log_dir, "data_log")
         self._model_para_log_dir = os.path.join(self.root_log_dir, self._cur_instance_root_log_dir, "model_paras_log")
+        os.makedirs(os.path.join(self.root_log_dir, self._cur_instance_root_log_dir))
         os.makedirs(self._tensor_board_log_dir)
         os.makedirs(self._data_log_dir)
         os.makedirs(self._model_para_log_dir)
