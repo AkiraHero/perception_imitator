@@ -2,7 +2,7 @@ from model.model_base import ModelBase
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from pointnet2_utils import PointNetSetAbstractionMsg, PointNetSetAbstraction
+from .pointnet2_utils import PointNetSetAbstractionMsg, PointNetSetAbstraction
 
 
 class PointNet2Encoder(ModelBase):
@@ -46,9 +46,10 @@ class PointNet2Encoder(ModelBase):
         # encode to mu / sigma
         mu = self.fc4(x)
         log_var = self.fc5(x)
-
-        # decode
+        # get sampled latent code from mu and sigma
         z = self.reparameterize(mu, log_var)
+        # decode target is: sample data from pvrcnn
+
 
 
         return x, l3_points

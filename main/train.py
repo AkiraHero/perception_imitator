@@ -3,6 +3,8 @@ from factory.model_factory import ModelFactory
 from factory.dataset_factory import DatasetFactory
 from factory.trainer_factory import TrainerFactory
 from utils.logger.basic_logger import BasicLogger
+import torch
+torch.multiprocessing.set_start_method('spawn')
 
 
 if __name__ == '__main__':

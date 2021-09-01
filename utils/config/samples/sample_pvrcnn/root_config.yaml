@@ -14,16 +14,10 @@ training:
   optimizer:
   - name: encoder_opt
     paras:
-      betas:
-      - 0.5
-      - 0.999
-      lr: 0.0001
-    type: Adam
+      lr: 0.00005
+    type: RMSprop
   - name: discriminator_opt
     paras:
-      betas:
-      - 0.5
-      - 0.999
-      lr: 0.0001
-    type: Adam
-  trainer_class: VAEGANTrainer
+      lr: 0.00005
+    type: RMSprop
+  trainer_class: VAEGANTrainerPVRCNN

@@ -1,6 +1,6 @@
 dataset_class: Kitti3dObjectDataset
 paras:
-  batch_size: 256
+  batch_size: 1
   data_root: /home/xlju/Project/ModelSimulator/data/kitti
   for_train: false
   num_workers: 4
