@@ -10,6 +10,7 @@ class VAEGANModel(ModelBase):
         self.target_model = ModelFactory.ModelFactory.get_model(config['paras']['submodules']['target_model'])
         paras = torch.load(config['paras']['submodules']['target_model']['model_para_file'])
         self.target_model.load_model_paras(paras)
+        self.target_model.eval()
         pass
 
     def forward(self):

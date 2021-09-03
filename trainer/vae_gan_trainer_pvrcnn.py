@@ -37,7 +37,9 @@ class VAEGANTrainerPVRCNN(TrainerBase):
             self.epoch = epoch
             for step, data in enumerate(self.data_loader):
                 self.data_loader.dataset.load_data_to_gpu(data)
-                pred_dicts = self.model.target_model(data)
+                target_res = self.model.target_model(data)
+
+
                 self.step = step
                 self.global_step += 1
 

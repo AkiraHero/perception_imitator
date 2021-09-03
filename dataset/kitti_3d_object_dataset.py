@@ -8,6 +8,21 @@ import numpy as np
 from collections import defaultdict
 import kornia
 
+
+'''
+    The dataset gives data including following keys:
+        'frame_id', 
+        'calib', 
+        'gt_boxes', 
+        'points', 
+        'use_lead_xyz',
+        'voxels', 
+        'voxel_coords', 
+        'voxel_num_points', 
+        'image_shape', 
+        'batch_size'
+'''
+
 class Kitti3dObjectDataset(DatasetBase):
     def __init__(self, config):
         super().__init__()
