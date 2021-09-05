@@ -27,7 +27,6 @@ class PointNet2Encoder(ModelBase):
         self.fc4 = nn.Linear(64, 32)
         self.fc5 = nn.Linear(64, 32)
 
-
     def forward(self, xyz):
         B, _, _ = xyz.shape
         if self.normal_channel:
@@ -49,9 +48,6 @@ class PointNet2Encoder(ModelBase):
         # get sampled latent code from mu and sigma
         z = self.reparameterize(mu, log_var)
         # decode target is: sample data from pvrcnn
-
-
-
         return x, l3_points
 
 
