@@ -10,4 +10,5 @@ out_green "Set PYTHONPATH=${PYTHONPATH}"
 out_green "Screen log will be redirected to file: ${LOG_NAME}"
 python3 ../main/train.py\
   --cfg_dir ../utils/config/samples/sample_pvrcnn\
-  2>&1 | tee "${LOG_NAME}"
+  --screen_log ${LOG_NAME}\
+  2>&1 | tee -i "${LOG_NAME}"

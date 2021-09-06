@@ -13,8 +13,11 @@ def sigint_handler(sig, frm):
     try:
         if args.screen_log is not None:
             logger.copy_screen_log(args.screen_log)
-    except:
+        exit(0)
+    except Exception as e_:
+        print(e_)
         print("fail to copy screen log.")
+        exit(-1)
 
 
 if __name__ == '__main__':
@@ -43,6 +46,7 @@ if __name__ == '__main__':
         trainer.run()
         if args.screen_log is not None:
             logger.copy_screen_log(args.screen_log)
-    except:
+    except Exception as e:
+        print(e)
         if args.screen_log is not None:
             logger.copy_screen_log(args.screen_log)

@@ -114,7 +114,8 @@ class BasicLogger:
             return cls.logger
 
     def copy_screen_log(self, file_path):
-        shutil.copy(file_path, os.path.join(self.root_log_dir, os.path.basename(file_path)))
+        shutil.copy(file_path, os.path.join(self.root_log_dir,
+                                            self._cur_instance_root_log_dir, os.path.basename(file_path)))
 
 
 

@@ -21,4 +21,5 @@ srun -p ${PARTITION} \
     --kill-on-bad-exit=1 \
     python3 ../main/train.py\
       --cfg_dir ../utils/config/samples/sample_pvrcnn\
-      2>&1 | tee "${LOG_NAME}"
+      --screen_log ${LOG_NAME}\
+      2>&1 | tee -i "${LOG_NAME}"
