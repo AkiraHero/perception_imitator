@@ -19,6 +19,7 @@ srun -p ${PARTITION} \
     --ntasks=${GPUS} \
     --ntasks-per-node=${GPUS_PER_NODE} \
     --kill-on-bad-exit=1 \
+    --partition=shlab_ap_ll \
     python3 ../main/train.py\
       --cfg_dir ../utils/config/samples/sample_pvrcnn\
       --screen_log ${LOG_NAME}\
