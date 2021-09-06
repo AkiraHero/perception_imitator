@@ -2,13 +2,15 @@ from model.model_base import ModelBase
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from .pointnet2_utils import PointNetSetAbstractionMsg, PointNetSetAbstraction
-
+from .pointnet2_utils import PointNetSetAbstractionMsg, PointNetSetAbstraction, farthest_point_sample
+import factory.model_factory as mf
+from collections import OrderedDict
 
 class PointNet2Encoder(ModelBase):
     def __init__(self, config):
         super(PointNet2Encoder, self).__init__()
-        normal_channel = True
+        self.key_pt_sample_num = 2048
+        normal_channel = False
         in_channel = 3 if normal_channel else 0
         self.normal_channel = normal_channel
         self.sa1 = PointNetSetAbstractionMsg(512, [0.1, 0.2, 0.4], [16, 32, 128], in_channel,
@@ -26,15 +28,44 @@ class PointNet2Encoder(ModelBase):
 
         self.fc4 = nn.Linear(64, 32)
         self.fc5 = nn.Linear(64, 32)
+        self.decoder_names = ['decoder_' + i for i in ['x', 'y', 'z', 'l', 'w', 'h', 'rot', 'cls']]
+        self.decoded_dict = OrderedDict()
+        for name in self.decoder_names:
+            self.add_module(name, mf.ModelFactory.get_model(config['paras']['submodules']['decoder']))
+
+    def get_sample_points(self, data):
+        batch_indices = data[:, 0].long()
+        keypoints_list = []
+        batch_size = batch_indices.unique().shape[0]
+        src_points = data[:, 1:4]
+        for bs_idx in range(batch_size):
+            bs_mask = (batch_indices == bs_idx)
+            sampled_points = src_points[bs_mask].unsqueeze(dim=0)  # (1, N, 3)
+            # if self.model_cfg.SAMPLE_METHOD == 'FPS':
+            cur_pt_idxs = farthest_point_sample(
+                sampled_points[:, :, 0:3].contiguous(), self.key_pt_sample_num
+            ).long()
+
+            if sampled_points.shape[1] < self.key_pt_sample_num:
+                times = int(self.key_pt_sample_num / sampled_points.shape[1]) + 1
+                non_empty = cur_pt_idxs[0, :sampled_points.shape[1]]
+                cur_pt_idxs[0] = non_empty.repeat(times)[:self.key_pt_sample_num]
+            keypoints = sampled_points[0][cur_pt_idxs[0]].unsqueeze(dim=0)
+            keypoints_list.append(keypoints)
+        keypoints = torch.cat(keypoints_list, dim=0)  # (B, M, 3)
+        return keypoints
 
     def forward(self, xyz):
-        B, _, _ = xyz.shape
+        pts = xyz[:, :4]
         if self.normal_channel:
-            norm = xyz[:, 3:, :]
-            xyz = xyz[:, :3, :]
+            norm = xyz[:, 4:]
         else:
             norm = None
-        l1_xyz, l1_points = self.sa1(xyz, norm)
+        key_points = self.get_sample_points(pts)
+        B, _, _ = key_points.shape
+        key_points = key_points.permute([0, 2, 1])
+
+        l1_xyz, l1_points = self.sa1(key_points, norm)
         l2_xyz, l2_points = self.sa2(l1_xyz, l1_points)
         l3_xyz, l3_points = self.sa3(l2_xyz, l2_points)
         x = l3_points.view(B, 1024)
@@ -48,7 +79,12 @@ class PointNet2Encoder(ModelBase):
         # get sampled latent code from mu and sigma
         z = self.reparameterize(mu, log_var)
         # decode target is: sample data from pvrcnn
-        return x, l3_points
+        for i in self.decoder_names:
+            self.decoded_dict[i] = self._modules[i](z).unsqueeze(1)
+
+        # shape: batch_size * obj_num * [x y z l w h rot cls]
+        boxes = torch.cat(list(self.decoded_dict.values()), dim=1).permute(0, 2, 1)
+        return boxes, l3_points
 
 
 

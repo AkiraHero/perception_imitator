@@ -14,6 +14,7 @@ if __name__ == '__main__':
     config.load_config(args.cfg_dir)
     config.overwrite_config_by_shell_args(args)
     logger = BasicLogger.get_logger(config)
+    logger.log_config(config)
 
     # instantiating all modules by non-singleton factory
     dataset = DatasetFactory.get_singleton_dataset(config.dataset_config)
@@ -22,5 +23,6 @@ if __name__ == '__main__':
 
     trainer.set_model(model)
     trainer.set_dataset(dataset)
+    trainer.set_logger(logger)
     trainer.run()
     pass

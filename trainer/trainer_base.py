@@ -56,6 +56,6 @@ class TrainerBase:
         if not isinstance(logger, BasicLogger):
             raise TypeError("logger must be with the type: BasicLogger")
         self.logger = logger
-        self.logger.register_status_hook(self.get_training_status())
+        self.logger.register_status_hook(self.get_training_status)
 
 

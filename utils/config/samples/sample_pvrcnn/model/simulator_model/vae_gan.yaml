@@ -3,10 +3,10 @@ paras:
   use_offline_target_model: True
   submodules:
     discriminator:
-      config_file: model/simulator_model/mlp.yaml
-      model_class: MLP
+      config_file: model/simulator_model/discriminator/multi_dim_discriminator.yaml
+      model_class: MultiDimMLPDiscriminator
     generator:
-      config_file: model/simulator_model/vae.yaml
+      config_file: model/simulator_model/generator/vae.yaml
       model_class: PointNet2Encoder
     target_model:
       config_file: model/target_model/openpcdet_pvrcnn.yaml

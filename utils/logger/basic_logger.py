@@ -87,12 +87,16 @@ class BasicLogger:
             "model_paras": model.state_dict()
         }
         date_time_str = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
-        pickle_name = "-".join(["model_ckpt", date_time_str]) + ".pkl"
-        with open(pickle_name, 'wr') as f:
+        epoch = status['epoch']
+        step = status['step']
+        pickle_name = "-".join([f'model_ckpt-epoth{epoch}-step{step}', date_time_str]) + ".pkl"
+        with open(os.path.join(self._model_para_log_dir, pickle_name), 'wb') as f:
             pickle.dump(para_dict, f)
         logging.info(f'Log model state dict as: {pickle_name}')
 
     def register_status_hook(self, fn):
+        if not callable(fn):
+            raise TypeError(f'input must be a function!')
         self._status_hook = fn
 
     @classmethod

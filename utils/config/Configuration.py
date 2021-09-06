@@ -2,13 +2,13 @@ import os
 import argparse
 import yaml
 import shutil
-
+import datetime
 '''
 treat the configuration as a tree
 '''
 
-#todo: control the access of members
 
+# todo: control the access of members
 class Configuration:
     def __init__(self):
         self.config_root_dir = None
@@ -146,7 +146,7 @@ class Configuration:
     def pack_configurations(self, _path):
         # all config file should be located in utils/config?? no
         # todo: pack config using expanded config
-        pass
+        shutil.copytree(self.config_root_dir, os.path.join(_path, "config"))
 
     @staticmethod
     def find_dict_node(target_dict, node_name):

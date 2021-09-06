@@ -11,6 +11,7 @@ class MLP(ModelBase):
         assert isinstance(layer_node_nums, list)
         assert isinstance(layer_act_funcs, list)
         assert len(layer_node_nums) == len(layer_act_funcs)
+        self.input_size = input_size_
         self.acts = []
         for i in layer_act_funcs:
             func = act_func_dict[i]
