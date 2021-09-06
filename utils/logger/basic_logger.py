@@ -3,6 +3,8 @@ import os
 import datetime
 import logging
 import pickle
+import shutil
+
 from model.model_base import ModelBase
 from utils.config.Configuration import Configuration
 from tensorboardX import SummaryWriter
@@ -63,7 +65,7 @@ class BasicLogger:
             return
 
     def _add_to_pickle(self, status, data_name, data_content):
-        with open(self._data_pickle_file, 'ar+') as f:
+        with open(self._data_pickle_file, 'ab') as f:
             pickle.dump({
                 "status": status,
                 "name": data_name,
@@ -110,6 +112,9 @@ class BasicLogger:
         else:
             cls.logger = BasicLogger(config)
             return cls.logger
+
+    def copy_screen_log(self, file_path):
+        shutil.copy(file_path, os.path.join(self.root_log_dir, os.path.basename(file_path)))
 
 
 

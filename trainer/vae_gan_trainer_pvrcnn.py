@@ -163,7 +163,9 @@ class VAEGANTrainerPVRCNN(TrainerBase):
                 # todo: need select valid object here
                 gt_valid_mask = gt_valid_mask.unsqueeze(-1).repeat(1, 1, out_d_real.shape[2])
                 assert gt_valid_mask.shape == out_d_fake.shape == out_d_real.shape
-                err_discriminator = torch.mean(out_d_fake.mul(gt_valid_mask)) - torch.mean(out_d_real.mul(gt_valid_mask))
+                err_fake = torch.mean(out_d_fake.mul(gt_valid_mask))
+                err_real = - torch.mean(out_d_real.mul(gt_valid_mask))
+                err_discriminator = err_fake + err_real
 
                 # update discriminator
                 err_discriminator.backward()
@@ -183,6 +185,17 @@ class VAEGANTrainerPVRCNN(TrainerBase):
                 err_discriminator_2nd = -torch.mean(out_d_fake_2nd.mul(gt_valid_mask))
                 err_discriminator_2nd.backward()
                 self.generator_optimizer.step()
+
+                # print current status and logging
+                logging.info(f'[loss] Epoch={epoch}/{self.max_epoch}, step={step}/{len(self.data_loader)}\t'
+                             f'D_fake={err_fake:.6f}\t'
+                             f'D_real={err_real:.6f}\t'
+                             f'D_total={err_discriminator:.6f}\t'
+                             f'G_fake={err_discriminator_2nd:.6f}')
+                self.logger.log_data("D_fake", err_fake.item(), True)
+                self.logger.log_data("D_real", err_real.item(), True)
+                self.logger.log_data("G_fake", err_discriminator_2nd.item(), True)
+
 
                 self.step = step
                 self.global_step += 1

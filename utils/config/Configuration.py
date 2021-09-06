@@ -70,6 +70,7 @@ class Configuration:
         parser.add_argument('--max_waiting_mins', type=int, default=0, help='max waiting minutes')
         parser.add_argument('--start_epoch', type=int, default=0, help='')
         parser.add_argument('--save_to_file', action='store_true', default=False, help='')
+        parser.add_argument('--screen_log', type=str, default=None, help='the file shell redirects to')
         args = parser.parse_args()
         return args
 
