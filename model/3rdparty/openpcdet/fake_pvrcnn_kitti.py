@@ -48,7 +48,8 @@ class FakePVRCNNOnKitti(ModelBase):
         work_unit_list = []
         idx = 0
         for i in range(self.num_workers):
-            work_unit = ids[idx:idx + work_unit_size]
+            end_point = idx + work_unit_size if i < self.num_workers - 1 else len(ids)
+            work_unit = ids[idx: end_point]
             work_unit_list.append(work_unit)
             idx = idx + work_unit_size
         return work_unit_list

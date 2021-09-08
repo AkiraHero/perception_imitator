@@ -1,6 +1,6 @@
 import logging
 import signal
-import sys
+import traceback
 from utils.config.Configuration import Configuration
 from factory.model_factory import ModelFactory
 from factory.dataset_factory import DatasetFactory
@@ -13,10 +13,10 @@ def sigint_handler(sig, frm):
     try:
         if args.screen_log is not None:
             logger.copy_screen_log(args.screen_log)
+            logger.log_model_params(model)
         exit(0)
     except Exception as e_:
-        print(e_)
-        print("fail to copy screen log.")
+        logging.exception(traceback.format_exc())
         exit(-1)
 
 
@@ -47,6 +47,8 @@ if __name__ == '__main__':
         if args.screen_log is not None:
             logger.copy_screen_log(args.screen_log)
     except Exception as e:
-        print(e)
         if args.screen_log is not None:
             logger.copy_screen_log(args.screen_log)
+            logger.log_model_params(model)
+        logging.exception(traceback.format_exc())
+        exit(-1)
