@@ -19,12 +19,21 @@ class FakePVRCNNOnKitti(ModelBase):
     def __init__(self, config):
         super(FakePVRCNNOnKitti, self).__init__()
         self.kitti_results_folder = config['paras']['kitti_results_folder']
+        self.load_once = config['paras']['load_once']
+        self.load_once_mem = {}
         self.num_workers = config['paras']['num_workers']
         self.max_obj_frame = 25
         if not os.path.isdir(self.kitti_results_folder):
             raise IsADirectoryError(f'The given folder({self.kitti_results_folder}) does not exist!')
         # check all pkl exists
         all_pkl = os.listdir(self.kitti_results_folder)
+        if self.load_once:
+            for pkl in all_pkl:
+                pkl_file = os.path.join(self.kitti_results_folder, pkl)
+                with open(pkl_file, 'rb') as f:
+                    res = pickle.load(f)
+                    self.load_once_mem[res['frame_id']] = res
+
         if 7481 != len(all_pkl):
             raise FileExistsError("folder should contain 7481 pkl files.")
         logging.info("Using FakePVRCNNOnKitti: initialization success.")
@@ -55,18 +64,24 @@ class FakePVRCNNOnKitti(ModelBase):
         return work_unit_list
 
     def _get_batch_result(self, data_batch):
-        manager = Manager()
-        result_dict = manager.dict()
         ids = data_batch['frame_id']
-        id_units = self._split_ids(ids)
-        proc_list = []
-        for unit in id_units:
-            p = Process(target=self._get_results, args=(unit, result_dict))
-            proc_list.append(p)
-            p.start()
-        for p in proc_list:
-            p.join()
-        return result_dict
+        if not self.load_once:
+            manager = Manager()
+            result_dict = manager.dict()
+            id_units = self._split_ids(ids)
+            proc_list = []
+            for unit in id_units:
+                p = Process(target=self._get_results, args=(unit, result_dict))
+                proc_list.append(p)
+                p.start()
+            for p in proc_list:
+                p.join()
+            return dict(result_dict)
+        else:
+            result_dict = {}
+            for id_ in ids:
+                result_dict[id_] = self.load_once_mem[id_]
+            return result_dict
 
     def _extend2max_capacity(self, t):
         n = torch.zeros([self.max_obj_frame, 8], device=self.device)
@@ -95,5 +110,5 @@ class FakePVRCNNOnKitti(ModelBase):
         return out_dict
 
     def forward(self, data_dict):
-        data = dict(self._get_batch_result(data_dict))
+        data = self._get_batch_result(data_dict)
         return self._data2device(data)

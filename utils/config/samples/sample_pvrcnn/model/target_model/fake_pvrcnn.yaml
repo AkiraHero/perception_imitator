@@ -2,3 +2,4 @@ name: FakePVRCNNOnKitti
 paras:
   kitti_results_folder: /home/xlju/data/pvrcnn_fake_model
   num_workers: 4
+  load_once: true

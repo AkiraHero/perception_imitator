@@ -136,6 +136,9 @@ class VAEGANTrainerPVRCNN(TrainerBase):
                 # align the gt_boxes and target_res_processed
                 gt_box = self.pre_process_gt_box(data['gt_boxes'])
                 gt_valid_mask = (gt_box[:, :, -1] > 0).to(self.device)
+                gt_valid_elements = gt_valid_mask.sum()
+                if not gt_valid_elements > 0:
+                    raise ZeroDivisionError("wrong gt valid number")
 
                 if gt_box.shape != target_boxes.shape:
                     raise TypeError("gt_box and target_box must have same shape")
@@ -163,8 +166,8 @@ class VAEGANTrainerPVRCNN(TrainerBase):
                 # todo: need select valid object here
                 gt_valid_mask = gt_valid_mask.unsqueeze(-1).repeat(1, 1, out_d_real.shape[2])
                 assert gt_valid_mask.shape == out_d_fake.shape == out_d_real.shape
-                err_fake = torch.mean(out_d_fake.mul(gt_valid_mask))
-                err_real = - torch.mean(out_d_real.mul(gt_valid_mask))
+                err_fake = out_d_fake.mul(gt_valid_mask).sum() / gt_valid_elements
+                err_real = - out_d_real.mul(gt_valid_mask).sum() / gt_valid_elements
                 err_discriminator = err_fake + err_real
 
                 # update discriminator
@@ -182,7 +185,7 @@ class VAEGANTrainerPVRCNN(TrainerBase):
 
                 # discriminator judge and update generator
                 out_d_fake_2nd = self.model.discriminator(discriminator_input_fake_2nd['feature'], discriminator_input_fake_2nd['boxes'])
-                err_discriminator_2nd = -torch.mean(out_d_fake_2nd.mul(gt_valid_mask))
+                err_discriminator_2nd = -out_d_fake_2nd.mul(gt_valid_mask).sum() / gt_valid_elements
                 err_discriminator_2nd.backward()
                 self.generator_optimizer.step()
 
