@@ -12,11 +12,13 @@ class VAEGANTrainerPVRCNN(TrainerBase):
         super(VAEGANTrainerPVRCNN, self).__init__()
         self.max_epoch = config['epoch']
         self.optimizer_config = config['optimizer']
-        self.device = torch.device(config['device'])
+        if not self.distributed:
+            self.device = torch.device(config['device'])
         self.generator_optimizer = None
         self.discriminator_optimizer = None
         self.data_loader = None
         self.max_obj = 25
+        self.sync_bn = config['sync_bn']
         pass
 
     def set_optimizer(self, optimizer_config):
@@ -110,12 +112,9 @@ class VAEGANTrainerPVRCNN(TrainerBase):
         return gt
 
     def run(self):
-        if not self.check_ready():
-            raise ModuleNotFoundError("The trainer not ready. Plz set model/dataset first")
         torch.autograd.set_detect_anomaly(True)
-        self.set_optimizer(self.optimizer_config)
-        self.model.set_device(self.device)
-        self.data_loader = self.dataset.get_data_loader()
+        super(VAEGANTrainerPVRCNN, self).run()
+
         # Training Loop
         self.global_step = 0
         for epoch in range(self.max_epoch):
@@ -189,17 +188,18 @@ class VAEGANTrainerPVRCNN(TrainerBase):
                 err_discriminator_2nd.backward()
                 self.generator_optimizer.step()
 
-                # print current status and logging
-                logging.info(f'[loss] Epoch={epoch}/{self.max_epoch}, step={step}/{len(self.data_loader)}\t'
-                             f'D_fake={err_fake:.6f}\t'
-                             f'D_real={err_real:.6f}\t'
-                             f'D_total={err_discriminator:.6f}\t'
-                             f'G_fake={err_discriminator_2nd:.6f}')
-                self.logger.log_data("D_fake", err_fake.item(), True)
-                self.logger.log_data("D_real", err_real.item(), True)
-                self.logger.log_data("G_fake", err_discriminator_2nd.item(), True)
-
+                # print current status and logging: todo: distributed
+                if self.rank == 0:
+                    logging.info(f'[loss] Epoch={epoch}/{self.max_epoch}, step={step}/{len(self.data_loader)}\t'
+                                 f'D_fake={err_fake:.6f}\t'
+                                 f'D_real={err_real:.6f}\t'
+                                 f'D_total={err_discriminator:.6f}\t'
+                                 f'G_fake={err_discriminator_2nd:.6f}')
+                    self.logger.log_data("D_fake", err_fake.item(), True)
+                    self.logger.log_data("D_real", err_real.item(), True)
+                    self.logger.log_data("G_fake", err_discriminator_2nd.item(), True)
 
                 self.step = step
                 self.global_step += 1
-            self.logger.log_model_params(self.model)
+            if self.rank == 0:
+                self.logger.log_model_params(self.model)

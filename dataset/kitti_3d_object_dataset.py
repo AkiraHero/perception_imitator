@@ -46,14 +46,12 @@ class Kitti3dObjectDataset(DatasetBase):
         assert item <= self.__len__()
         return self._embedding_dataset[item]
 
-    def get_data_loader(self):
-        dist = False
-        if dist:
+    def get_data_loader(self, distributed=False):
+        if distributed:
             if self._is_train:
-                sampler = torch.utils.data.distributed.DistributedSampler(dataset)
-            # else:
-            #     rank, world_size = common_utils.get_dist_info()
-            #     sampler = DistributedSampler(dataset, world_size, rank, shuffle=False)
+                sampler = torch.utils.data.distributed.DistributedSampler(self)
+            else:
+                raise NotImplementedError
         else:
             sampler = None
 

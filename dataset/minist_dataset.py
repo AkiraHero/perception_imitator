@@ -25,7 +25,7 @@ class MinistDataset(DatasetBase):
         assert item <= self.__len__()
         return self._embedding_dataset[item]
 
-    def get_data_loader(self):
+    def get_data_loader(self, distributed=False):
         return DataLoader(
             dataset=self,
             batch_size=self._batch_size,
