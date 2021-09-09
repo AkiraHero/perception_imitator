@@ -5,3 +5,4 @@ pyyaml
 torchvision
 matplotlib
 tensorboardX
+packaging

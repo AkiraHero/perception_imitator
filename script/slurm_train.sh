@@ -10,7 +10,7 @@ out_green "Set PYTHONPATH=${PYTHONPATH}"
 out_green "Screen log will be redirected to file: ${LOG_NAME}"
 
 JOB_NAME=hello_world
-GPUS_PER_NODE=4
+GPUS_PER_NODE=2
 GPUS=${GPUS_PER_NODE}
 
 while true

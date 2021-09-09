@@ -32,12 +32,6 @@ if __name__ == '__main__':
         args = config.get_shell_args_train()
         config.load_config(args.cfg_dir)
         config.overwrite_config_by_shell_args(args)
-        logger = None
-        if config.extra_config['local_rank'] == 0:
-            logger = BasicLogger.get_logger(config)
-            logger.log_config(config)
-        else:
-            logger = MuteLogger(config)
 
         # instantiating all modules by non-singleton factory
         dataset = DatasetFactory.get_singleton_dataset(config.dataset_config)
@@ -46,6 +40,13 @@ if __name__ == '__main__':
         if config.training_config['distributed']:
             trainer.config_distributed_computing(tcp_port=config.extra_config['tcp_port'],
                                                  local_rank=config.extra_config['local_rank'])
+        logger = None
+        if os.environ['RANK'] == 0:
+            logger = BasicLogger.get_logger(config)
+            logger.log_config(config)
+        else:
+            logger = MuteLogger(config)
+
         trainer.set_model(model)
         trainer.set_dataset(dataset)
         trainer.set_logger(logger)
