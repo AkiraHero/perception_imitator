@@ -77,7 +77,7 @@ class BasicLogger:
             self._monitor_dict[data_name] = []
         self._monitor_dict[data_name].append((status, data_content))
         if add_to_tensorboard:
-            self._tensor_board_writer.add_scalar(data_name, data_content)
+            self._tensor_board_writer.add_scalar(data_name, data_content, global_step=self._status_hook()['global_step'])
         self._add_to_pickle(status, data_name, data_content)
 
     def log_model_params(self, model):

@@ -1,7 +1,7 @@
 dataset_class: Kitti3dObjectDataset
 paras:
   batch_size: 3
-  data_root: /home/xlju/Project/ModelSimulator/data/kitti
+  data_root: ../data/kitti
   for_train: false
   num_workers: 4
   shuffle: true

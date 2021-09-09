@@ -1,6 +1,6 @@
 CLASS_NAMES: ['Car', 'Pedestrian', 'Cyclist']
 DATA_CONFIG:
-    _BASE_CONFIG_: /home/xlju/Project/ModelSimulator/utils/config/samples/sample4/dataset/openpcd_dataset_related/kitti_dataset.yaml
+    _BASE_CONFIG_: ../utils/config/samples/sample4/dataset/openpcd_dataset_related/kitti_dataset.yaml
 
     DATA_PROCESSOR:
         -   NAME: mask_points_and_boxes_outside_range

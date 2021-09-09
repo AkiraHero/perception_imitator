@@ -3,7 +3,7 @@ dataset:
   dataset_class: Kitti3dObjectDataset
 logging:
   ckpt_eph_interval: 2
-  path: '/home/xlju/Project/ModelSimulator/output'
+  path: ../output
   suffix: 'train_target_PVRCNN'
 model:
   config_file: model/simulator_model/vae_gan.yaml
