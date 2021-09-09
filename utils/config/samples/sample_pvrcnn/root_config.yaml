@@ -21,3 +21,4 @@ training:
       lr: 0.00005
     type: RMSprop
   trainer_class: VAEGANTrainerPVRCNN
+  sync_bn: False

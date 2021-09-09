@@ -12,18 +12,23 @@ class VAEGANTrainerPVRCNN(TrainerBase):
         super(VAEGANTrainerPVRCNN, self).__init__()
         self.max_epoch = config['epoch']
         self.optimizer_config = config['optimizer']
-        self.device = torch.device(config['device'])
+        if not self.distributed:
+            self.device = torch.device(config['device'])
         self.generator_optimizer = None
         self.discriminator_optimizer = None
         self.data_loader = None
         self.max_obj = 25
+        self.sync_bn = config['sync_bn']
         pass
 
     def set_optimizer(self, optimizer_config):
+        model = self.model
+        if isinstance(self.model, torch.nn.parallel.DistributedDataParallel):
+            model = self.model.module
         optimizer_ref = torch.optim.__dict__[self.optimizer_config[0]['type']]
-        self.generator_optimizer = optimizer_ref(self.model.generator.parameters(), **optimizer_config[0]['paras'])
+        self.generator_optimizer = optimizer_ref(model.generator.parameters(), **optimizer_config[0]['paras'])
         optimizer_ref = torch.optim.__dict__[self.optimizer_config[1]['type']]
-        self.discriminator_optimizer = optimizer_ref(self.model.discriminator.parameters(),
+        self.discriminator_optimizer = optimizer_ref(model.discriminator.parameters(),
                                                      **optimizer_config[1]['paras'])
 
     def fullfill_obj(self, objs, max_obj_num):
@@ -106,31 +111,31 @@ class VAEGANTrainerPVRCNN(TrainerBase):
         if len(gt_boxes.shape) != 3:
             raise TypeError("obj vector must have shape of 3: batchsize, num, [7dimboxes+class]")
         gt = torch.zeros([gt_boxes.shape[0], self.max_obj, 8])
-        gt[:, :gt_boxes.shape[1], :] = gt_boxes[:, :gt_boxes.shape[1], :]
+        gt[:, :gt_boxes.shape[1], :] = gt_boxes[:, :self.max_obj, :]
         return gt
 
     def run(self):
-        if not self.check_ready():
-            raise ModuleNotFoundError("The trainer not ready. Plz set model/dataset first")
         torch.autograd.set_detect_anomaly(True)
-        self.set_optimizer(self.optimizer_config)
-        self.model.set_device(self.device)
-        self.data_loader = self.dataset.get_data_loader()
+        super(VAEGANTrainerPVRCNN, self).run()
+        model = self.model
+        if isinstance(self.model, torch.nn.parallel.DistributedDataParallel):
+            model = self.model.module
+
         # Training Loop
         self.global_step = 0
         for epoch in range(self.max_epoch):
             self.epoch = epoch
             for step, data in enumerate(self.data_loader):
                 # zero grad
-                self.model.discriminator.zero_grad()
-                self.model.generator.zero_grad()
+                model.discriminator.zero_grad()
+                model.generator.zero_grad()
 
                 # 0.data preparation
                 # trans all data to gpu device
                 self.data_loader.dataset.load_data_to_gpu(data)
 
                 # get target model output
-                target_res = self.model.target_model(data)
+                target_res = model.target_model(data)
                 target_boxes = target_res['dt_lidar_box']
 
                 # align the gt_boxes and target_res_processed
@@ -147,20 +152,20 @@ class VAEGANTrainerPVRCNN(TrainerBase):
 
                 # input data and gt_boxes as generator input / get generator output
                 generator_input = data['points']
-                generator_output, point_feature = self.model.generator(generator_input)
+                generator_output, point_feature = model.generator(generator_input)
 
                 # input generator output and data to discriminator
                 discriminator_input_fake = {
                     "feature": point_feature.squeeze(-1),
                     "boxes": generator_output.detach()
                 }
-                out_d_fake = self.model.discriminator(discriminator_input_fake['feature'], discriminator_input_fake['boxes'])
+                out_d_fake = model.discriminator(discriminator_input_fake['feature'], discriminator_input_fake['boxes'])
                 # input target_model output and data to discriminator
                 discriminator_input_real = {
                     "feature": point_feature.squeeze(-1),
                     "boxes": target_boxes
                 }
-                out_d_real = self.model.discriminator(discriminator_input_real['feature'], discriminator_input_real['boxes'])
+                out_d_real = model.discriminator(discriminator_input_real['feature'], discriminator_input_real['boxes'])
 
                 # get discriminator loss
                 # todo: need select valid object here
@@ -177,29 +182,30 @@ class VAEGANTrainerPVRCNN(TrainerBase):
                 # 2.update generator
 
                 # encoding - sampling - generator again
-                generator_output_2nd, point_feature_2nd = self.model.generator(generator_input)
+                generator_output_2nd, point_feature_2nd = model.generator(generator_input)
                 discriminator_input_fake_2nd = {
                     "feature": point_feature_2nd.squeeze(-1),
                     "boxes": generator_output_2nd
                 }
 
                 # discriminator judge and update generator
-                out_d_fake_2nd = self.model.discriminator(discriminator_input_fake_2nd['feature'], discriminator_input_fake_2nd['boxes'])
+                out_d_fake_2nd = model.discriminator(discriminator_input_fake_2nd['feature'], discriminator_input_fake_2nd['boxes'])
                 err_discriminator_2nd = -out_d_fake_2nd.mul(gt_valid_mask).sum() / gt_valid_elements
                 err_discriminator_2nd.backward()
                 self.generator_optimizer.step()
 
-                # print current status and logging
-                logging.info(f'[loss] Epoch={epoch}/{self.max_epoch}, step={step}/{len(self.data_loader)}\t'
-                             f'D_fake={err_fake:.6f}\t'
-                             f'D_real={err_real:.6f}\t'
-                             f'D_total={err_discriminator:.6f}\t'
-                             f'G_fake={err_discriminator_2nd:.6f}')
-                self.logger.log_data("D_fake", err_fake.item(), True)
-                self.logger.log_data("D_real", err_real.item(), True)
-                self.logger.log_data("G_fake", err_discriminator_2nd.item(), True)
-
+                # print current status and logging: todo: distributed
+                if self.rank == 0:
+                    logging.info(f'[loss] Epoch={epoch}/{self.max_epoch}, step={step}/{len(self.data_loader)}\t'
+                                 f'D_fake={err_fake:.6f}\t'
+                                 f'D_real={err_real:.6f}\t'
+                                 f'D_total={err_discriminator:.6f}\t'
+                                 f'G_fake={err_discriminator_2nd:.6f}')
+                    self.logger.log_data("D_fake", err_fake.item(), True)
+                    self.logger.log_data("D_real", err_real.item(), True)
+                    self.logger.log_data("G_fake", err_discriminator_2nd.item(), True)
 
                 self.step = step
                 self.global_step += 1
-            self.logger.log_model_params(self.model)
+            if self.rank == 0:
+                self.logger.log_model_params(model)

@@ -4,7 +4,7 @@ import datetime
 import logging
 import pickle
 import shutil
-
+import torch
 from model.model_base import ModelBase
 from utils.config.Configuration import Configuration
 from tensorboardX import SummaryWriter
@@ -81,6 +81,10 @@ class BasicLogger:
         self._add_to_pickle(status, data_name, data_content)
 
     def log_model_params(self, model):
+        if model is not None:
+            if isinstance(model, torch.nn.parallel.DistributedDataParallel):
+                model = model.module
+
         if not isinstance(model, ModelBase):
             raise TypeError("input type must have class attribute of ModelBase!")
         status = self._status_hook()

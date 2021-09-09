@@ -11,5 +11,5 @@ class DatasetBase(Dataset):
     def __len__(self):
         raise NotImplementedError
 
-    def get_data_loader(self):
+    def get_data_loader(self, distributed=False):
         raise NotImplementedError

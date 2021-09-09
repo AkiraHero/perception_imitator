@@ -35,7 +35,8 @@ class Kitti3dObjectDataset(DatasetBase):
             dataset_cfg=edict(config['paras']['config_file']['expanded']),
             class_names=config['paras']['class_names'],
             root_path=Path(self._data_root),
-            training=config['paras']['for_train'],
+            # to forbid data augmentor in openpcdet, for we do not do online match of gt/dt now
+            training=False,
             logger=None,
         )
 
@@ -46,21 +47,19 @@ class Kitti3dObjectDataset(DatasetBase):
         assert item <= self.__len__()
         return self._embedding_dataset[item]
 
-    def get_data_loader(self):
-        dist = False
-        if dist:
+    def get_data_loader(self, distributed=False):
+        if distributed:
             if self._is_train:
-                sampler = torch.utils.data.distributed.DistributedSampler(dataset)
-            # else:
-            #     rank, world_size = common_utils.get_dist_info()
-            #     sampler = DistributedSampler(dataset, world_size, rank, shuffle=False)
+                sampler = torch.utils.data.distributed.DistributedSampler(self)
+            else:
+                raise NotImplementedError
         else:
             sampler = None
 
         return DataLoader(
             dataset=self,
             batch_size=self._batch_size,
-            shuffle=self._shuffle,
+            shuffle=(sampler is None) and self._shuffle,
             num_workers=self._num_workers,
             pin_memory=True,
             collate_fn=Kitti3dObjectDataset.collate_batch,
