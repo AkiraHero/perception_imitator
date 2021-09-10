@@ -40,7 +40,8 @@ if __name__ == '__main__':
         trainer = TrainerFactory.get_trainer(config.training_config)
         if config.extra_config['distributed']:
             logging.info("using distributed training......")
-            trainer.config_distributed_computing(tcp_port=config.extra_config['tcp_port'],
+            trainer.config_distributed_computing(launcher=config.extra_config['launcher'],
+                                                 tcp_port=config.extra_config['tcp_port'],
                                                  local_rank=config.extra_config['local_rank'])
         logger = None
         if os.environ['RANK'] == 0:
