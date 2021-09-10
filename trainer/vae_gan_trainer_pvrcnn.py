@@ -111,7 +111,7 @@ class VAEGANTrainerPVRCNN(TrainerBase):
         if len(gt_boxes.shape) != 3:
             raise TypeError("obj vector must have shape of 3: batchsize, num, [7dimboxes+class]")
         gt = torch.zeros([gt_boxes.shape[0], self.max_obj, 8])
-        gt[:, :gt_boxes.shape[1], :] = gt_boxes[:, :gt_boxes.shape[1], :]
+        gt[:, :gt_boxes.shape[1], :] = gt_boxes[:, :self.max_obj, :]
         return gt
 
     def run(self):
