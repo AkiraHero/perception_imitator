@@ -22,10 +22,13 @@ class VAEGANTrainerPVRCNN(TrainerBase):
         pass
 
     def set_optimizer(self, optimizer_config):
+        model = self.model
+        if isinstance(self.model, torch.nn.parallel.DistributedDataParallel):
+            model = self.model.module
         optimizer_ref = torch.optim.__dict__[self.optimizer_config[0]['type']]
-        self.generator_optimizer = optimizer_ref(self.model.generator.parameters(), **optimizer_config[0]['paras'])
+        self.generator_optimizer = optimizer_ref(model.generator.parameters(), **optimizer_config[0]['paras'])
         optimizer_ref = torch.optim.__dict__[self.optimizer_config[1]['type']]
-        self.discriminator_optimizer = optimizer_ref(self.model.discriminator.parameters(),
+        self.discriminator_optimizer = optimizer_ref(model.discriminator.parameters(),
                                                      **optimizer_config[1]['paras'])
 
     def fullfill_obj(self, objs, max_obj_num):
@@ -114,6 +117,9 @@ class VAEGANTrainerPVRCNN(TrainerBase):
     def run(self):
         torch.autograd.set_detect_anomaly(True)
         super(VAEGANTrainerPVRCNN, self).run()
+        model = self.model
+        if isinstance(self.model, torch.nn.parallel.DistributedDataParallel):
+            model = self.model.module
 
         # Training Loop
         self.global_step = 0
@@ -121,15 +127,15 @@ class VAEGANTrainerPVRCNN(TrainerBase):
             self.epoch = epoch
             for step, data in enumerate(self.data_loader):
                 # zero grad
-                self.model.discriminator.zero_grad()
-                self.model.generator.zero_grad()
+                model.discriminator.zero_grad()
+                model.generator.zero_grad()
 
                 # 0.data preparation
                 # trans all data to gpu device
                 self.data_loader.dataset.load_data_to_gpu(data)
 
                 # get target model output
-                target_res = self.model.target_model(data)
+                target_res = model.target_model(data)
                 target_boxes = target_res['dt_lidar_box']
 
                 # align the gt_boxes and target_res_processed
@@ -146,20 +152,20 @@ class VAEGANTrainerPVRCNN(TrainerBase):
 
                 # input data and gt_boxes as generator input / get generator output
                 generator_input = data['points']
-                generator_output, point_feature = self.model.generator(generator_input)
+                generator_output, point_feature = model.generator(generator_input)
 
                 # input generator output and data to discriminator
                 discriminator_input_fake = {
                     "feature": point_feature.squeeze(-1),
                     "boxes": generator_output.detach()
                 }
-                out_d_fake = self.model.discriminator(discriminator_input_fake['feature'], discriminator_input_fake['boxes'])
+                out_d_fake = model.discriminator(discriminator_input_fake['feature'], discriminator_input_fake['boxes'])
                 # input target_model output and data to discriminator
                 discriminator_input_real = {
                     "feature": point_feature.squeeze(-1),
                     "boxes": target_boxes
                 }
-                out_d_real = self.model.discriminator(discriminator_input_real['feature'], discriminator_input_real['boxes'])
+                out_d_real = model.discriminator(discriminator_input_real['feature'], discriminator_input_real['boxes'])
 
                 # get discriminator loss
                 # todo: need select valid object here
@@ -176,14 +182,14 @@ class VAEGANTrainerPVRCNN(TrainerBase):
                 # 2.update generator
 
                 # encoding - sampling - generator again
-                generator_output_2nd, point_feature_2nd = self.model.generator(generator_input)
+                generator_output_2nd, point_feature_2nd = model.generator(generator_input)
                 discriminator_input_fake_2nd = {
                     "feature": point_feature_2nd.squeeze(-1),
                     "boxes": generator_output_2nd
                 }
 
                 # discriminator judge and update generator
-                out_d_fake_2nd = self.model.discriminator(discriminator_input_fake_2nd['feature'], discriminator_input_fake_2nd['boxes'])
+                out_d_fake_2nd = model.discriminator(discriminator_input_fake_2nd['feature'], discriminator_input_fake_2nd['boxes'])
                 err_discriminator_2nd = -out_d_fake_2nd.mul(gt_valid_mask).sum() / gt_valid_elements
                 err_discriminator_2nd.backward()
                 self.generator_optimizer.step()
@@ -202,4 +208,4 @@ class VAEGANTrainerPVRCNN(TrainerBase):
                 self.step = step
                 self.global_step += 1
             if self.rank == 0:
-                self.logger.log_model_params(self.model)
+                self.logger.log_model_params(model)

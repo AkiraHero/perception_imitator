@@ -50,8 +50,6 @@ if __name__ == '__main__':
             logger.log_config(config)
         else:
             logger = MuteLogger(config)
-        if config.extra_config['distributed'] and isinstance(model, DistributedDataParallel):
-            model = model.module
         trainer.set_model(model)
         trainer.set_dataset(dataset)
         trainer.set_logger(logger)
