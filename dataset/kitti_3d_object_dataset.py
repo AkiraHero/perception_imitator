@@ -35,7 +35,8 @@ class Kitti3dObjectDataset(DatasetBase):
             dataset_cfg=edict(config['paras']['config_file']['expanded']),
             class_names=config['paras']['class_names'],
             root_path=Path(self._data_root),
-            training=config['paras']['for_train'],
+            # to forbid data augmentor in openpcdet, for we do not do online match of gt/dt now
+            training=False,
             logger=None,
         )
 

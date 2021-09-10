@@ -52,6 +52,8 @@ class TrainerBase:
         if self.distributed:
             self.model = nn.parallel.DistributedDataParallel(self.model,
                                                              device_ids=[self.rank % torch.cuda.device_count()])
+            # why not set self.model = model.module?
+            # In case the need to use model(data) directly.
 
 
     def set_model(self, model):
