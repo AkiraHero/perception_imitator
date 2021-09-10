@@ -58,7 +58,7 @@ class Kitti3dObjectDataset(DatasetBase):
         return DataLoader(
             dataset=self,
             batch_size=self._batch_size,
-            shuffle=self._shuffle,
+            shuffle=(sampler is None) and self._shuffle,
             num_workers=self._num_workers,
             pin_memory=True,
             collate_fn=Kitti3dObjectDataset.collate_batch,
