@@ -2,6 +2,7 @@ import os
 import logging
 import signal
 import traceback
+from torch.nn.parallel import DistributedDataParallel
 from utils.config.Configuration import Configuration
 from factory.model_factory import ModelFactory
 from factory.dataset_factory import DatasetFactory
@@ -49,7 +50,8 @@ if __name__ == '__main__':
             logger.log_config(config)
         else:
             logger = MuteLogger(config)
-
+        if config.extra_config['distributed'] and isinstance(model, DistributedDataParallel):
+            model = model.module
         trainer.set_model(model)
         trainer.set_dataset(dataset)
         trainer.set_logger(logger)
