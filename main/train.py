@@ -44,7 +44,7 @@ if __name__ == '__main__':
                                                  tcp_port=config.extra_config['tcp_port'],
                                                  local_rank=config.extra_config['local_rank'])
         logger = None
-        if os.environ['RANK'] == 0:
+        if not config.extra_config['distributed'] or os.environ['RANK'] == 0:
             logger = BasicLogger.get_logger(config)
             logger.log_config(config)
         else:
