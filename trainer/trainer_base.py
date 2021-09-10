@@ -79,7 +79,8 @@ class TrainerBase:
         self.logger = logger
         self.logger.register_status_hook(self.get_training_status)
 
-    def config_distributed_computing(self, tcp_port=None, local_rank=None):
+    def config_distributed_computing(self, launcher="none", tcp_port=None, local_rank=None):
+        self.launcher = launcher
         if self.launcher == 'none':
             self.distributed = False
             self.total_gpus = 1

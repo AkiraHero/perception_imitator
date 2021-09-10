@@ -21,6 +21,7 @@ def init_distributed_device(launcher, tcp_port, local_rank=None, backend='nccl')
 
     """
     if launcher == 'slurm':
+        logging.info(f"config distributed training with launcher: {launcher}")
         proc_id = int(os.environ['SLURM_PROCID'])
         ntasks = int(os.environ['SLURM_NTASKS'])
         node_list = os.environ['SLURM_NODELIST']
@@ -37,6 +38,7 @@ def init_distributed_device(launcher, tcp_port, local_rank=None, backend='nccl')
         rank = dist.get_rank()
         return total_gpus, rank
     elif launcher == 'pytorch':
+        logging.info(f"config distributed training with launcher: {launcher}")
         assert local_rank is not None
         if mp.get_start_method(allow_none=True) is None:
             mp.set_start_method('spawn')

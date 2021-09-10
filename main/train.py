@@ -38,7 +38,7 @@ if __name__ == '__main__':
         dataset = DatasetFactory.get_singleton_dataset(config.dataset_config)
         model = ModelFactory.get_model(config.model_config)
         trainer = TrainerFactory.get_trainer(config.training_config)
-        if 'distributed' in config.extra_config.keys() and config.extra_config['distributed']:
+        if config.extra_config['distributed']:
             logging.info("using distributed training......")
             trainer.config_distributed_computing(tcp_port=config.extra_config['tcp_port'],
                                                  local_rank=config.extra_config['local_rank'])
