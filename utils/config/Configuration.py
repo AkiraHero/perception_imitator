@@ -68,6 +68,7 @@ class Configuration:
         # parser.add_argument('--max_waiting_mins', type=int, default=0, help='max waiting minutes')
         # parser.add_argument('--start_epoch', type=int, default=0, help='')
         # parser.add_argument('--save_to_file', action='store_true', default=False, help='')
+        parser.add_argument('--distributed', action='store_true', default=False, help='')
         parser.add_argument('--local_rank', type=int, default=0, help='local rank for distributed training')
         parser.add_argument('--tcp_port', type=int, default=18888, help='tcp port for distrbuted training')
         parser.add_argument('--launcher', choices=['none', 'pytorch', 'slurm'], default='none')

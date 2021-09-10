@@ -1,3 +1,4 @@
+import os
 import logging
 import signal
 import traceback
@@ -12,7 +13,7 @@ from utils.logger.mute_logger import MuteLogger
 def sigint_handler(sig, frm):
     print("You kill the program.")
     try:
-        if args.screen_log is not None:
+        if args.screen_log is not None and logger is not None:
             logger.copy_screen_log(args.screen_log)
             logger.log_model_params(model)
         exit(0)
@@ -37,7 +38,7 @@ if __name__ == '__main__':
         dataset = DatasetFactory.get_singleton_dataset(config.dataset_config)
         model = ModelFactory.get_model(config.model_config)
         trainer = TrainerFactory.get_trainer(config.training_config)
-        if config.training_config['distributed']:
+        if 'distributed' in config.extra_config.keys() and config.extra_config['distributed']:
             trainer.config_distributed_computing(tcp_port=config.extra_config['tcp_port'],
                                                  local_rank=config.extra_config['local_rank'])
         logger = None
@@ -55,7 +56,7 @@ if __name__ == '__main__':
         if args.screen_log is not None:
             logger.copy_screen_log(args.screen_log)
     except Exception as e:
-        if args.screen_log is not None:
+        if args.screen_log is not None and logger is not None:
             logger.copy_screen_log(args.screen_log)
             logger.log_model_params(model)
         logging.exception(traceback.format_exc())

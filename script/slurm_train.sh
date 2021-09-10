@@ -33,6 +33,7 @@ srun -p ${PARTITION} \
     python3 ../main/train.py\
       --cfg_dir ../utils/config/samples/sample_pvrcnn\
       --screen_log ${LOG_NAME}\
+      --distributed \
       --launcher slurm \
       --tcp_port $PORT \
       2>&1 | tee -i "${LOG_NAME}"
