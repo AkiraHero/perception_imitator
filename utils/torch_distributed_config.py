@@ -52,8 +52,8 @@ def init_distributed_device(launcher, tcp_port, local_rank=None, backend='nccl')
             world_size=num_gpus
         )
         rank = dist.get_rank()
-        os.environ['WORLD_SIZE'] = num_gpus
-        os.environ['RANK'] = local_rank
+        os.environ['WORLD_SIZE'] = str(num_gpus)
+        os.environ['RANK'] = str(local_rank)
         return num_gpus, rank
     else:
         raise NotImplementedError
