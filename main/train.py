@@ -30,6 +30,10 @@ if __name__ == '__main__':
         # manage config
         logging_logger = logging.getLogger()
         logging_logger.setLevel(logging.NOTSET)
+        ch = logging.StreamHandler()
+        formatter = logging.Formatter('%(asctime)s [%(levelname)s] %(name)s: %(message)s')
+        ch.setFormatter(formatter)
+
         config = Configuration()
         args = config.get_shell_args_train()
         config.load_config(args.cfg_dir)
@@ -45,11 +49,11 @@ if __name__ == '__main__':
                                                  tcp_port=config.extra_config['tcp_port'],
                                                  local_rank=config.extra_config['local_rank'])
         logger = None
-        if not config.extra_config['distributed'] or os.environ['RANK'] == 0:
+        if (not config.extra_config['distributed']) or (os.environ['RANK'] == str(0)):
             logger = BasicLogger.get_logger(config)
             logger.log_config(config)
         else:
-            logger = MuteLogger(config)
+            logger = MuteLogger.get_logger(config)
         trainer.set_model(model)
         trainer.set_dataset(dataset)
         trainer.set_logger(logger)
