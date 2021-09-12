@@ -84,7 +84,7 @@ class PointNet2Encoder(ModelBase):
 
         # shape: batch_size * obj_num * [x y z l w h rot cls]
         boxes = torch.cat(list(self.decoded_dict.values()), dim=1).permute(0, 2, 1)
-        return boxes, l3_points
+        return boxes, l3_points, mu, log_var
 
 
 

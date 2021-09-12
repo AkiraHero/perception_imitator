@@ -19,6 +19,7 @@ class VAEGANTrainerPVRCNN(TrainerBase):
         self.data_loader = None
         self.max_obj = 25
         self.sync_bn = config['sync_bn']
+        self.use_kld_loss = config['use_kld_loss']
         pass
 
     def set_optimizer(self, optimizer_config):
@@ -152,7 +153,7 @@ class VAEGANTrainerPVRCNN(TrainerBase):
 
                 # input data and gt_boxes as generator input / get generator output
                 generator_input = data['points']
-                generator_output, point_feature = model.generator(generator_input)
+                generator_output, point_feature, _, _ = model.generator(generator_input)
 
                 # input generator output and data to discriminator
                 discriminator_input_fake = {
@@ -182,7 +183,7 @@ class VAEGANTrainerPVRCNN(TrainerBase):
                 # 2.update generator
 
                 # encoding - sampling - generator again
-                generator_output_2nd, point_feature_2nd = model.generator(generator_input)
+                generator_output_2nd, point_feature_2nd, mu, log_var = model.generator(generator_input)
                 discriminator_input_fake_2nd = {
                     "feature": point_feature_2nd.squeeze(-1),
                     "boxes": generator_output_2nd
@@ -191,7 +192,13 @@ class VAEGANTrainerPVRCNN(TrainerBase):
                 # discriminator judge and update generator
                 out_d_fake_2nd = model.discriminator(discriminator_input_fake_2nd['feature'], discriminator_input_fake_2nd['boxes'])
                 err_discriminator_2nd = -out_d_fake_2nd.mul(gt_valid_mask).sum() / gt_valid_elements
-                err_discriminator_2nd.backward()
+                err_generator = 0.
+                if self.use_kld_loss:
+                    KLD_element = mu.pow(2).add_(log_var.exp()).mul_(-1).add_(1).add_(log_var)
+                    errG_KLD = torch.sigmoid(torch.sum(KLD_element))
+                    err_generator += errG_KLD
+                err_generator += err_discriminator_2nd
+                err_generator.backward()
                 self.generator_optimizer.step()
 
                 # print current status and logging: todo: distributed
@@ -200,10 +207,13 @@ class VAEGANTrainerPVRCNN(TrainerBase):
                                  f'D_fake={err_fake:.6f}\t'
                                  f'D_real={err_real:.6f}\t'
                                  f'D_total={err_discriminator:.6f}\t'
-                                 f'G_fake={err_discriminator_2nd:.6f}')
+                                 f'G_fake_d={err_discriminator_2nd:.6f}\t'
+                                 f'G_fake={err_generator:.6f}'
+                                 )
                     self.logger.log_data("D_fake", err_fake.item(), True)
                     self.logger.log_data("D_real", err_real.item(), True)
-                    self.logger.log_data("G_fake", err_discriminator_2nd.item(), True)
+                    self.logger.log_data("G_fake_d", err_discriminator_2nd.item(), True)
+                    self.logger.log_data("G_fake", err_generator.item(), True)
 
                 self.step = step
                 self.global_step += 1
