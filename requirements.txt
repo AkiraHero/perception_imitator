@@ -6,3 +6,4 @@ torchvision
 matplotlib
 tensorboardX
 packaging
+scipy
