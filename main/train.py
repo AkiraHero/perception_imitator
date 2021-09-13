@@ -58,6 +58,8 @@ if __name__ == '__main__':
         trainer.set_model(model)
         trainer.set_dataset(dataset)
         trainer.set_logger(logger)
+        if args.check_point_file is not None:
+            trainer.load_state(args.check_point_file)
         logging.info("Preparation done! Trainer run!")
         trainer.run()
         if args.screen_log is not None:

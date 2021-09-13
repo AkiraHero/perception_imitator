@@ -1,3 +1,6 @@
+import os
+import pickle
+import logging
 from model.model_base import ModelBase
 from dataset.dataset_base import DatasetBase
 from utils.logger.basic_logger import BasicLogger
@@ -54,7 +57,7 @@ class TrainerBase:
                                                              device_ids=[self.rank % torch.cuda.device_count()])
             # why not set self.model = model.module?
             # In case the need to use model(data) directly.
-
+        # [Instruction] add code in sub class and using super to run this function for general preparation
 
     def set_model(self, model):
         if not isinstance(model, ModelBase):
@@ -69,11 +72,26 @@ class TrainerBase:
     def set_optimizer(self, optimizer_config):
         raise NotImplementedError
 
-    def load_state(self, state_dict):
-        raise NotImplementedError
+    def load_state(self, log_file):
+        if not os.exists(log_file):
+            raise FileNotFoundError(f'file not exist:{log_file}')
+        params = None
+        try:
+            params = torch.load(log_file)
+        except Exception as e:
+            with open(log_file, 'rb') as f:
+                params = pickle.load(f)
+        if params is not None:
+            if self.model is not None:
+                self.model.load_model_paras(params)
+            else:
+                raise AssertionError('model does not exist.')
+            logging.info(f"loaded model params:{log_file}")
+            # todo: retrive all status including: optimizer epoch log folder...
+            status = params['status']
+        else:
+            raise AssertionError('Fail to load params for model.')
 
-    def save_state(self, state_dict):
-        raise NotImplementedError
 
     def set_logger(self, logger):
         if not isinstance(logger, BasicLogger):

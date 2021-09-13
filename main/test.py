@@ -31,7 +31,7 @@ if __name__ == '__main__':
         data_loader = dataset.get_data_loader()
 
         model = ModelFactory.get_model(config.model_config)
-        model.load_model_paras(args.check_point_file)
+        model.load_model_paras_from_file(args.check_point_file)
         model.set_eval()
         model.set_device("cuda:0")
         output_data = {
