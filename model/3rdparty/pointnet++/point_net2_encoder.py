@@ -55,7 +55,7 @@ class PointNet2Encoder(ModelBase):
         keypoints = torch.cat(keypoints_list, dim=0)  # (B, M, 3)
         return keypoints
 
-    def forward(self, xyz):
+    def forward(self, xyz, gt_boxes):
         pts = xyz[:, :4]
         if self.normal_channel:
             norm = xyz[:, 4:]
@@ -78,9 +78,22 @@ class PointNet2Encoder(ModelBase):
         log_var = self.fc5(x)
         # get sampled latent code from mu and sigma
         z = self.reparameterize(mu, log_var)
+
         # decode target is: sample data from pvrcnn
+        gt_boxes_dims = {
+            'decoder_x': gt_boxes[:, :, 0],
+            'decoder_y': gt_boxes[:, :, 1],
+            'decoder_z': gt_boxes[:, :, 2],
+            'decoder_l': gt_boxes[:, :, 3],
+            'decoder_w': gt_boxes[:, :, 4],
+            'decoder_h': gt_boxes[:, :, 5],
+            'decoder_rot': gt_boxes[:, :, 6],
+            'decoder_cls': gt_boxes[:, :, 7]
+        }
         for i in self.decoder_names:
-            self.decoded_dict[i] = self._modules[i](z).unsqueeze(1)
+            # concatnate scene encoding with gtbox_dim
+            decoder_input = torch.cat([z, gt_boxes_dims[i]], dim=1)
+            self.decoded_dict[i] = self._modules[i](decoder_input).unsqueeze(1)
 
         # shape: batch_size * obj_num * [x y z l w h rot cls]
         boxes = torch.cat(list(self.decoded_dict.values()), dim=1).permute(0, 2, 1)

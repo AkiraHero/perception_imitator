@@ -143,6 +143,7 @@ class VAEGANTrainerPVRCNN(TrainerBase):
                 gt_box = self.pre_process_gt_box(data['gt_boxes'])
                 gt_valid_mask = (gt_box[:, :, -1] > 0).to(self.device)
                 gt_valid_elements = gt_valid_mask.sum()
+                gt_box = gt_box.to(self.device)
                 if not gt_valid_elements > 0:
                     raise ZeroDivisionError("wrong gt valid number")
 
@@ -153,7 +154,7 @@ class VAEGANTrainerPVRCNN(TrainerBase):
 
                 # input data and gt_boxes as generator input / get generator output
                 generator_input = data['points']
-                generator_output, point_feature, _, _ = model.generator(generator_input)
+                generator_output, point_feature, _, _ = model.generator(generator_input, gt_box)
 
                 # input generator output and data to discriminator
                 discriminator_input_fake = {

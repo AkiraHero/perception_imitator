@@ -61,6 +61,7 @@ class OpenPCDetPVRCNN(ModelBase):
             raise ModuleNotFoundError("Please call set_attr to set a dataset reference for this model.")
         return self.embedding_model.forward(batch_dict)
 
+    # todo: here should have some customization for online trainning of target_model.. watch out!
     def load_model_paras(self, para_dict):
         return self.embedding_model.load_state_dict(para_dict['model_state'])
 

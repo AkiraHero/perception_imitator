@@ -5,6 +5,7 @@ import logging
 import pickle
 import shutil
 import torch
+import subprocess
 from model.model_base import ModelBase
 from utils.config.Configuration import Configuration
 from tensorboardX import SummaryWriter
@@ -22,10 +23,6 @@ class BasicLogger:
         return cls.logger
 
     def __init__(self, config):
-        # super(BasicLogger, self).__init__(__name__)
-        # ch = logging.StreamHandler()
-        # formatter = logging.Formatter('%(asctime)s [%(levelname)s] %(name)s: %(message)s')
-        # ch.setFormatter(formatter)
         if self.__initialized:
             return
         if not isinstance(config, Configuration):
@@ -33,6 +30,7 @@ class BasicLogger:
         config_dict = config.get_complete_config()
         if "logging" not in config_dict.keys():
             raise KeyError("Not config on logger has been found!")
+        self._program_version = None
         self._monitor_dict = {}
         self._status_hook = None
         self.root_log_dir = config_dict['logging']['path']
@@ -46,9 +44,27 @@ class BasicLogger:
         os.makedirs(self._tensor_board_log_dir)
         os.makedirs(self._data_log_dir)
         os.makedirs(self._model_para_log_dir)
+        # add version file
+        version_file = os.path.join(self.root_log_dir, self._cur_instance_root_log_dir, "version.txt")
+        self.get_program_version()
+        self.log_version_info(version_file)
         self._tensor_board_writer = SummaryWriter(self._tensor_board_log_dir)
         self._data_pickle_file = os.path.join(self._data_log_dir, "data_bin.pkl")
         self.__initialized = True
+
+    def get_program_version(self):
+        git_version = None
+        try:
+            git_version = subprocess.check_output(["git", "describe"]).strip().decode()
+            if self._program_version is None:
+                self._program_version = git_version
+        except:
+            pass
+        return git_version
+
+    def log_version_info(self, file_name):
+        with open(file_name, 'w') as f:
+            f.write("Current version:", self._program_version)
 
     def log_config(self, config):
         if not isinstance(config, Configuration):
@@ -97,7 +113,8 @@ class BasicLogger:
         step = status['step']
         pickle_name = "-".join([f'model_ckpt-epoth{epoch}-step{step}', date_time_str]) + ".pkl"
         with open(os.path.join(self._model_para_log_dir, pickle_name), 'wb') as f:
-            pickle.dump(para_dict, f)
+            # pickle.dump(para_dict, f)
+            torch.save(para_dict, f)
         logging.info(f'Log model state dict as: {pickle_name}')
 
     def register_status_hook(self, fn):

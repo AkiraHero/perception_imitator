@@ -1,3 +1,6 @@
+import pickle
+
+import torch
 import torch.nn as nn
 
 
@@ -31,10 +34,21 @@ class ModelBase(nn.Module):
     def set_attr(self, attr, value):
         pass
 
-    def load_model_paras(self, para_dict):
-        super(ModelBase, self).load_state_dict(para_dict)
+    def load_model_paras(self, para_file):
+        params = None
+        try:
+            params = torch.load(para_file)
+        except Exception as e:
+            with open(para_file, 'rb') as f:
+                params = pickle.load(f)
+        if params is not None:
+            super(ModelBase, self).load_state_dict(params['model_paras'])
+        else:
+            raise AssertionError('Fail to load params for model.')
 
-    def load_state_dict(self, dict):
+
+
+    def load_state_dict(self, file):
         raise AssertionError("The load_state_dict function has been forbidden in this model system. "
                              "Please use load_model_paras instead.")
 

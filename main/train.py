@@ -2,7 +2,7 @@ import os
 import logging
 import signal
 import traceback
-from torch.nn.parallel import DistributedDataParallel
+import subprocess
 from utils.config.Configuration import Configuration
 from factory.model_factory import ModelFactory
 from factory.dataset_factory import DatasetFactory
@@ -25,7 +25,8 @@ def sigint_handler(sig, frm):
 
 if __name__ == '__main__':
     signal.signal(signal.SIGINT, sigint_handler)
-
+    git_version = subprocess.check_output(["git", "describe"]).strip().decode()
+    logging.info(f'Your program version is {git_version}')
     try:
         # manage config
         logging_logger = logging.getLogger()
