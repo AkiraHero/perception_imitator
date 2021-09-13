@@ -55,7 +55,7 @@ class BasicLogger:
     def get_program_version(self):
         git_version = None
         try:
-            git_version = subprocess.check_output(["git", "describe"]).strip().decode()
+            git_version = subprocess.check_output(["git", 'rev-parse', 'HEAD']).strip().decode()
             if self._program_version is None:
                 self._program_version = git_version
         except:

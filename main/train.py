@@ -25,7 +25,7 @@ def sigint_handler(sig, frm):
 
 if __name__ == '__main__':
     signal.signal(signal.SIGINT, sigint_handler)
-    git_version = subprocess.check_output(["git", "describe"]).strip().decode()
+    git_version = subprocess.check_output(["git", 'rev-parse', 'HEAD']).strip().decode()
     logging.info(f'Your program version is {git_version}')
     try:
         # manage config
