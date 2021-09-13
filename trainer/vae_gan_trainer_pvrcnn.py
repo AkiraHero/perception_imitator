@@ -159,7 +159,7 @@ class VAEGANTrainerPVRCNN(TrainerBase):
                 # input generator output and data to discriminator
                 discriminator_input_fake = {
                     "feature": point_feature.squeeze(-1),
-                    "boxes": generator_output.detach()
+                    "boxes": gt_box + generator_output.detach()
                 }
                 out_d_fake = model.discriminator(discriminator_input_fake['feature'], discriminator_input_fake['boxes'])
                 # input target_model output and data to discriminator
@@ -187,7 +187,7 @@ class VAEGANTrainerPVRCNN(TrainerBase):
                 generator_output_2nd, point_feature_2nd, mu, log_var = model.generator(generator_input, gt_box)
                 discriminator_input_fake_2nd = {
                     "feature": point_feature_2nd.squeeze(-1),
-                    "boxes": generator_output_2nd
+                    "boxes": gt_box + generator_output_2nd
                 }
 
                 # discriminator judge and update generator
