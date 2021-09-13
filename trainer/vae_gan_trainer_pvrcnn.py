@@ -184,7 +184,7 @@ class VAEGANTrainerPVRCNN(TrainerBase):
                 # 2.update generator
 
                 # encoding - sampling - generator again
-                generator_output_2nd, point_feature_2nd, mu, log_var = model.generator(generator_input)
+                generator_output_2nd, point_feature_2nd, mu, log_var = model.generator(generator_input, gt_box)
                 discriminator_input_fake_2nd = {
                     "feature": point_feature_2nd.squeeze(-1),
                     "boxes": generator_output_2nd
