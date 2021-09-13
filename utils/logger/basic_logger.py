@@ -64,7 +64,7 @@ class BasicLogger:
 
     def log_version_info(self, file_name):
         with open(file_name, 'w') as f:
-            f.write("Current version:", self._program_version)
+            f.write(f'Current version:{self._program_version}')
 
     def log_config(self, config):
         if not isinstance(config, Configuration):
