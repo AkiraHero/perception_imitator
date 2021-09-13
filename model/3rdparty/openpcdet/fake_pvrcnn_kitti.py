@@ -103,7 +103,7 @@ class FakePVRCNNOnKitti(ModelBase):
             gt_inx.append(np.array(frm['gt_valid_inx']))
             frame_id.append(k)
         box_lidar = torch.cat(box_lidar, dim=0).to(self.device)
-        gt_inx = np.array(gt_inx)
+        gt_inx = np.array(gt_inx, dtype=object)
         out_dict['gt_valid_inx'] = gt_inx
         out_dict['dt_lidar_box'] = box_lidar
         out_dict['frame_id'] = frame_id

@@ -111,7 +111,7 @@ class BasicLogger:
         date_time_str = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
         epoch = status['epoch']
         step = status['step']
-        pickle_name = "-".join([f'model_ckpt-epoth{epoch}-step{step}', date_time_str]) + ".pkl"
+        pickle_name = "-".join([f'model_ckpt-epoth{epoch}-step{step}', date_time_str]) + ".pt"
         with open(os.path.join(self._model_para_log_dir, pickle_name), 'wb') as f:
             # pickle.dump(para_dict, f)
             torch.save(para_dict, f)

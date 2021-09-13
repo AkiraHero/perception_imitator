@@ -46,8 +46,6 @@ class ModelBase(nn.Module):
         else:
             raise AssertionError('Fail to load params for model.')
 
-
-
     def load_state_dict(self, file):
         raise AssertionError("The load_state_dict function has been forbidden in this model system. "
                              "Please use load_model_paras instead.")
