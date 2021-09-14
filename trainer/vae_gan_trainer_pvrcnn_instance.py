@@ -122,6 +122,7 @@ class VAEGANTrainerPVRCNNInstance(TrainerBase):
         batch_indices = points[:, 0].long()
         batch_size = batch_indices.unique().shape[0]
         src_points = points[:, 1:]
+        point_dim = src_points.shape[1]
 
         instance_point_list = []
         instance_idx = 0
@@ -131,7 +132,12 @@ class VAEGANTrainerPVRCNNInstance(TrainerBase):
             instance_num = len(point_inx[bs_idx])
             for i in range(instance_num):
                 instance_points = cur_points[point_inx[bs_idx][i], :]
-                instance_points = torch.cat([instance_idx * torch.ones(instance_points.shape[0], device=self.device, dtype=torch.float).reshape(-1,1), instance_points], dim=1)
+                if instance_points.shape[0] > 0:
+                    instance_points = torch.cat([instance_idx * torch.ones(instance_points.shape[0], device=self.device, dtype=torch.float).reshape(-1,1), instance_points], dim=1)
+                else:
+                    instance_points = torch.cat([instance_idx * torch.ones(1, device=self.device, dtype=torch.float).reshape(1,1),
+                                                 torch.zeros(point_dim, device=self.device, dtype=torch.float).reshape(1, -1)], dim=1)
+
                 instance_point_list.append(instance_points)
                 instance_idx += 1
         return torch.cat(instance_point_list, dim=0)
