@@ -7,6 +7,8 @@ import torch
 import numpy as np
 from collections import defaultdict
 import kornia
+import os
+import pickle
 
 
 '''
@@ -39,13 +41,22 @@ class Kitti3dObjectDataset(DatasetBase):
             training=False,
             logger=None,
         )
+        self._point_inx_file = os.path.join(self._data_root, "pt_inx.pkl")
+        self._point_inx = None
+        if os.path.exists(self._point_inx_file):
+            with open(self._point_inx_file, 'rb') as f:
+                self._point_inx = pickle.load(f)
 
     def __len__(self):
         return len(self._embedding_dataset)
 
     def __getitem__(self, item):
         assert item <= self.__len__()
-        return self._embedding_dataset[item]
+        data_ = self._embedding_dataset[item]
+        if not isinstance(data_, dict):
+            raise TypeError
+        data_['point_inx'] = self.get_point_inx(data_)
+        return data_
 
     def get_data_loader(self, distributed=False):
         if distributed:
@@ -76,7 +87,7 @@ class Kitti3dObjectDataset(DatasetBase):
         for key, val in batch_dict.items():
             if not isinstance(val, np.ndarray):
                 continue
-            elif key in ['frame_id', 'metadata', 'calib']:
+            elif key in ['frame_id', 'metadata', 'calib', 'point_inx']:
                 continue
             elif key in ['images']:
                 batch_dict[key] = kornia.image_to_tensor(val).float().cuda().contiguous()
@@ -219,6 +230,8 @@ class Kitti3dObjectDataset(DatasetBase):
 
                         images.append(image_pad)
                     ret[key] = np.stack(images, axis=0)
+                elif key in ['point_inx']:
+                    ret[key] = np.array(val, dtype=object)
                 else:
                     ret[key] = np.stack(val, axis=0)
             except:
@@ -245,3 +258,7 @@ class Kitti3dObjectDataset(DatasetBase):
         pad_params = (0, diff)
 
         return pad_params
+
+    def get_point_inx(self, batch_dict):
+        frm = batch_dict['frame_id']
+        return self._point_inx[frm]
