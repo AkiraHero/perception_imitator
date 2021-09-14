@@ -122,7 +122,7 @@ class VAEGANTrainerPVRCNN(TrainerBase):
         model = self.model
         if isinstance(self.model, torch.nn.parallel.DistributedDataParallel):
             model = self.model.module
-
+        loss_func = torch.nn.BCELoss()
         # Training Loop
         self.global_step = 0
         for epoch in range(self.max_epoch):
@@ -172,10 +172,12 @@ class VAEGANTrainerPVRCNN(TrainerBase):
 
                 # get discriminator loss
                 # todo: need select valid object here
-                gt_valid_mask = gt_valid_mask.unsqueeze(-1).repeat(1, 1, out_d_real.shape[2])
-                assert gt_valid_mask.shape == out_d_fake.shape == out_d_real.shape
-                err_fake = out_d_fake.mul(gt_valid_mask).sum() / gt_valid_elements
-                err_real = - out_d_real.mul(gt_valid_mask).sum() / gt_valid_elements
+                gt_valid_inx = gt_valid_mask.nonzero()
+                assert out_d_fake.shape == out_d_real.shape
+                out_d_fake_selected = out_d_fake[gt_valid_inx[:, 0], gt_valid_inx[:, 1]]
+                out_d_real_selected = out_d_real[gt_valid_inx[:, 0], gt_valid_inx[:, 1]]
+                err_fake = loss_func(out_d_fake_selected, torch.zeros(out_d_fake_selected.shape, device=self.device))
+                err_real = loss_func(out_d_real_selected, torch.ones(out_d_real_selected.shape, device=self.device))
                 err_discriminator = err_fake + err_real
 
                 # update discriminator
@@ -197,7 +199,9 @@ class VAEGANTrainerPVRCNN(TrainerBase):
 
                     # discriminator judge and update generator
                     out_d_fake_2nd = model.discriminator(discriminator_input_fake_2nd['feature'], discriminator_input_fake_2nd['boxes'])
-                    err_discriminator_2nd = -out_d_fake_2nd.mul(gt_valid_mask).sum() / gt_valid_elements
+                    out_d_fake_2nd_selected = out_d_fake_2nd[gt_valid_inx[:, 0], gt_valid_inx[:, 1]]
+                    err_discriminator_2nd = loss_func(out_d_fake_2nd_selected,
+                                                      torch.ones(out_d_fake_2nd_selected.shape, device=self.device))
                     err_generator = 0.
                     if self.use_kld_loss:
                         KLD_element = mu.pow(2).add_(log_var.exp()).mul_(-1).add_(1).add_(log_var)
