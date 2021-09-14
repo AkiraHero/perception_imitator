@@ -116,13 +116,35 @@ class VAEGANTrainerPVRCNNInstance(TrainerBase):
         gt[:, :gt_boxes.shape[1], :] = gt_boxes[:, :self.max_obj, :]
         return gt
 
+    def get_instance_cloud(self, batch_dict):
+        points = batch_dict['points']
+        point_inx = batch_dict['point_inx']
+        batch_indices = points[:, 0].long()
+        batch_size = batch_indices.unique().shape[0]
+        src_points = points[:, 1:]
+
+        instance_point_list = []
+        instance_idx = 0
+        for bs_idx in range(batch_size):
+            bs_mask = (batch_indices == bs_idx)
+            cur_points = src_points[bs_mask] # (1, N, 3)
+            instance_num = len(point_inx[bs_idx])
+            for i in range(instance_num):
+                instance_points = cur_points[point_inx[bs_idx][i], :]
+                instance_points = torch.cat([instance_idx * torch.ones(instance_points.shape[0], device=self.device, dtype=torch.float).reshape(-1,1), instance_points], dim=1)
+                instance_point_list.append(instance_points)
+                instance_idx += 1
+        return torch.cat(instance_point_list, dim=0)
+
+
+
     def run(self):
         torch.autograd.set_detect_anomaly(True)
         super(VAEGANTrainerPVRCNNInstance, self).run()
         model = self.model
         if isinstance(self.model, torch.nn.parallel.DistributedDataParallel):
             model = self.model.module
-
+        loss_func = torch.nn.BCELoss()
         # Training Loop
         self.global_step = 0
         for epoch in range(self.max_epoch):
@@ -154,28 +176,33 @@ class VAEGANTrainerPVRCNNInstance(TrainerBase):
                 # 1.update discriminator
 
                 # input data and gt_boxes as generator input / get generator output
-                generator_input = data['points']
+                generator_input = self.get_instance_cloud(data)
                 generator_output, point_feature, _, _ = model.generator(generator_input, gt_box)
 
                 # input generator output and data to discriminator
+                gt_stack = torch.cat(gt_box.chunk(gt_box.shape[0], dim=0), dim=1).squeeze(0)
+                gt_mask = (gt_stack[:, 7] != 0).nonzero()
+                gt_valid_instance = gt_stack[gt_mask[:, 0], :]
+                gt_valid_num = gt_valid_instance.shape[0]
+
+                target_stack = torch.cat(target_boxes.chunk(target_boxes.shape[0], dim=0), dim=1).squeeze(0)
+                target_valid_instance = target_stack[gt_mask[:, 0], :]
+
                 discriminator_input_fake = {
                     "feature": point_feature.squeeze(-1),
-                    "boxes": gt_box + generator_output.detach()
+                    "boxes": gt_valid_instance + generator_output.detach()
                 }
                 out_d_fake = model.discriminator(discriminator_input_fake['feature'], discriminator_input_fake['boxes'])
                 # input target_model output and data to discriminator
                 discriminator_input_real = {
                     "feature": point_feature.squeeze(-1),
-                    "boxes": target_boxes
+                    "boxes": target_valid_instance
                 }
                 out_d_real = model.discriminator(discriminator_input_real['feature'], discriminator_input_real['boxes'])
 
                 # get discriminator loss
-                # todo: need select valid object here
-                gt_valid_mask = gt_valid_mask.unsqueeze(-1).repeat(1, 1, out_d_real.shape[2])
-                assert gt_valid_mask.shape == out_d_fake.shape == out_d_real.shape
-                err_fake = out_d_fake.mul(gt_valid_mask).sum() / gt_valid_elements
-                err_real = - out_d_real.mul(gt_valid_mask).sum() / gt_valid_elements
+                err_fake = loss_func(out_d_fake, torch.zeros(out_d_fake.shape, device=self.device)) / gt_valid_num
+                err_real = loss_func(out_d_real, torch.ones(out_d_real.shape, device=self.device)) / gt_valid_num
                 err_discriminator = err_fake + err_real
 
                 # update discriminator
@@ -192,16 +219,18 @@ class VAEGANTrainerPVRCNNInstance(TrainerBase):
                     generator_output_2nd, point_feature_2nd, mu, log_var = model.generator(generator_input, gt_box)
                     discriminator_input_fake_2nd = {
                         "feature": point_feature_2nd.squeeze(-1),
-                        "boxes": gt_box + generator_output_2nd
+                        "boxes": gt_valid_instance + generator_output_2nd
                     }
 
                     # discriminator judge and update generator
                     out_d_fake_2nd = model.discriminator(discriminator_input_fake_2nd['feature'], discriminator_input_fake_2nd['boxes'])
-                    err_discriminator_2nd = -out_d_fake_2nd.mul(gt_valid_mask).sum() / gt_valid_elements
+                    err_discriminator_2nd = loss_func(out_d_fake_2nd,
+                                                      torch.ones(out_d_fake_2nd.shape,
+                                                                 device=self.device)) / gt_valid_num
                     err_generator = 0.
                     if self.use_kld_loss:
                         KLD_element = mu.pow(2).add_(log_var.exp()).mul_(-1).add_(1).add_(log_var)
-                        errG_KLD = torch.sigmoid(torch.sum(KLD_element) * (-0.5))
+                        errG_KLD = torch.sum(KLD_element) * (-0.5) / gt_valid_num * 0.1 # lambda=0.1
                         err_generator += errG_KLD
                     err_generator += err_discriminator_2nd
                     err_generator.backward()

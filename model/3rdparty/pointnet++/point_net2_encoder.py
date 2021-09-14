@@ -79,24 +79,30 @@ class PointNet2Encoder(ModelBase):
         # get sampled latent code from mu and sigma
         z = self.reparameterize(mu, log_var)
 
+        # reformat gtboxes
+
+        gt_stack = torch.cat(gt_boxes.chunk(gt_boxes.shape[0], dim=0), dim=1).squeeze(0)
+        gt_mask = (gt_stack[:, 7] != 0).nonzero()
+        assert gt_mask.shape[0] == z.shape[0]
+        gt_valid_instance = gt_stack[gt_mask[:, 0], :]
         # decode target is: sample data from pvrcnn
         gt_boxes_dims = {
-            'decoder_x': gt_boxes[:, :, 0],
-            'decoder_y': gt_boxes[:, :, 1],
-            'decoder_z': gt_boxes[:, :, 2],
-            'decoder_l': gt_boxes[:, :, 3],
-            'decoder_w': gt_boxes[:, :, 4],
-            'decoder_h': gt_boxes[:, :, 5],
-            'decoder_rot': gt_boxes[:, :, 6],
-            'decoder_cls': gt_boxes[:, :, 7]
+            'decoder_x': gt_valid_instance[..., 0],
+            'decoder_y': gt_valid_instance[..., 1],
+            'decoder_z': gt_valid_instance[..., 2],
+            'decoder_l': gt_valid_instance[..., 3],
+            'decoder_w': gt_valid_instance[..., 4],
+            'decoder_h': gt_valid_instance[..., 5],
+            'decoder_rot': gt_valid_instance[..., 6],
+            'decoder_cls': gt_valid_instance[..., 7]
         }
         for i in self.decoder_names:
             # concatnate scene encoding with gtbox_dim
-            decoder_input = torch.cat([z, gt_boxes_dims[i]], dim=1)
-            self.decoded_dict[i] = self._modules[i](decoder_input).unsqueeze(1)
+            decoder_input = torch.cat([z, gt_boxes_dims[i].unsqueeze(1)], dim=1)
+            self.decoded_dict[i] = self._modules[i](decoder_input)
 
         # shape: batch_size * obj_num * [x y z l w h rot cls]
-        boxes = torch.cat(list(self.decoded_dict.values()), dim=1).permute(0, 2, 1)
+        boxes = torch.cat(list(self.decoded_dict.values()), dim=1)
         return boxes, l3_points, mu, log_var
 
 

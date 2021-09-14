@@ -19,19 +19,14 @@ class MultiDimMLPDiscriminator(ModelBase):
 
     def forward(self, features, x):
         # shape of x: batch size, channel_dim, channel_num
-        if len(x.shape) != 3:
-            raise TypeError("input must have 3-dim shape")
-        batch_size, channel_dim, channel_num = x.shape
-        if channel_num != self.sub_mlp_num:
-            raise TypeError(f'input channel must be {self.sub_mlp_num}')
+
+        batch_size, channel_dim = x.shape
         if channel_dim + self.feature_encoding_model.output_shape != self.sub_mlp_input_size:
             raise TypeError(f'input dim of each channel must be the sum of {channel_dim} + {self.feature_encoding_model.output_shape}')
         feature_encoding = self.feature_encoding_model(features)
-        sub_output_dict = OrderedDict()
-        for mlp_name, channel in zip(self.sub_mlp_name, range(self.sub_mlp_num)):
-            sub_input = torch.cat([feature_encoding, x[:, :, channel]], dim=1)
-            sub_output_dict[mlp_name] = self._modules[mlp_name](sub_input).unsqueeze(-1)
-        final_output = torch.cat(list(sub_output_dict.values()), dim=2)
-        return final_output
+
+        sub_input = torch.cat([feature_encoding, x], dim=1)
+        sub_output = self._modules['0'](sub_input).unsqueeze(-1)
+        return sub_output
 
 

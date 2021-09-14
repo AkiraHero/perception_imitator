@@ -20,7 +20,7 @@ training:
     paras:
       lr: 0.00005
     type: RMSprop
-  trainer_class: VAEGANTrainerPVRCNN
+  trainer_class: VAEGANTrainerPVRCNNInstance
   sync_bn: False
   use_kld_loss: True
   n_critic: 2
