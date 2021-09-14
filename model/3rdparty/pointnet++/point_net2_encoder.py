@@ -1,3 +1,5 @@
+import logging
+
 from model.model_base import ModelBase
 import torch
 import torch.nn as nn
@@ -86,7 +88,11 @@ class PointNet2Encoder(ModelBase):
 
         gt_stack = torch.cat(gt_boxes.chunk(gt_boxes.shape[0], dim=0), dim=1).squeeze(0)
         gt_mask = (gt_stack[:, 7] != 0).nonzero()
-        assert gt_mask.shape[0] == z.shape[0]
+        if gt_mask.shape[0] != z.shape[0]:
+            logging.ERROR("gt_mask.shape:" + str(gt_mask.shape))
+            logging.ERROR("z.shape:" + str(z.shape))
+            logging.ERROR("gt_stack.shape:" + str(gt_stack.shape))
+            raise TypeError(f'gt mask num:{gt_mask.shape[0]}, z num {z.shape[0]}')
         gt_valid_instance = gt_stack[gt_mask[:, 0], :]
         # decode target is: sample data from pvrcnn
         gt_boxes_dims = {
