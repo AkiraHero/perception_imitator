@@ -181,7 +181,7 @@ class VAEGANTrainerPVRCNN(TrainerBase):
                 # update discriminator
                 err_discriminator.backward()
                 self.discriminator_optimizer.step()
-                for p in self.model.discriminator.parameters():
+                for p in model.discriminator.parameters():
                     p.data.clamp_(-self.weight_clip, self.weight_clip)
 
                 # 2.update generator
