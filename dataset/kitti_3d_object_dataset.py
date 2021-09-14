@@ -55,7 +55,8 @@ class Kitti3dObjectDataset(DatasetBase):
         data_ = self._embedding_dataset[item]
         if not isinstance(data_, dict):
             raise TypeError
-        data_['point_inx'] = self.get_point_inx(data_)
+        if self._point_inx is not None:
+            data_['point_inx'] = self.get_point_inx(data_)
         return data_
 
     def get_data_loader(self, distributed=False):
@@ -260,5 +261,7 @@ class Kitti3dObjectDataset(DatasetBase):
         return pad_params
 
     def get_point_inx(self, batch_dict):
+        if self._point_inx is None:
+            raise TypeError
         frm = batch_dict['frame_id']
         return self._point_inx[frm]
