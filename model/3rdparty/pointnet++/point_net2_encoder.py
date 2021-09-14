@@ -42,15 +42,18 @@ class PointNet2Encoder(ModelBase):
             bs_mask = (batch_indices == bs_idx)
             sampled_points = src_points[bs_mask].unsqueeze(dim=0)  # (1, N, 3)
             # if self.model_cfg.SAMPLE_METHOD == 'FPS':
-            cur_pt_idxs = farthest_point_sample(
-                sampled_points[:, :, 0:3].contiguous(), self.key_pt_sample_num
-            ).long()
+            if sampled_points.shape[1] != 0:
+                cur_pt_idxs = farthest_point_sample(
+                    sampled_points[:, :, 0:3].contiguous(), self.key_pt_sample_num
+                ).long()
 
-            if sampled_points.shape[1] < self.key_pt_sample_num:
-                times = int(self.key_pt_sample_num / sampled_points.shape[1]) + 1
-                non_empty = cur_pt_idxs[0, :sampled_points.shape[1]]
-                cur_pt_idxs[0] = non_empty.repeat(times)[:self.key_pt_sample_num]
-            keypoints = sampled_points[0][cur_pt_idxs[0]].unsqueeze(dim=0)
+                if sampled_points.shape[1] < self.key_pt_sample_num:
+                    times = int(self.key_pt_sample_num / sampled_points.shape[1]) + 1
+                    non_empty = cur_pt_idxs[0, :sampled_points.shape[1]]
+                    cur_pt_idxs[0] = non_empty.repeat(times)[:self.key_pt_sample_num]
+                keypoints = sampled_points[0][cur_pt_idxs[0]].unsqueeze(dim=0)
+            else:
+                keypoints = torch.zeros([1, self.key_pt_sample_num, 3], device=self.device)
             keypoints_list.append(keypoints)
         keypoints = torch.cat(keypoints_list, dim=0)  # (B, M, 3)
         return keypoints
