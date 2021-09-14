@@ -20,7 +20,8 @@ class VAEGANTrainerPVRCNN(TrainerBase):
         self.max_obj = 25
         self.sync_bn = config['sync_bn']
         self.use_kld_loss = config['use_kld_loss']
-        pass
+        self.n_critic = config['n_critic']
+        self.weight_clip = config['weight_clip']
 
     def set_optimizer(self, optimizer_config):
         model = self.model
@@ -180,27 +181,31 @@ class VAEGANTrainerPVRCNN(TrainerBase):
                 # update discriminator
                 err_discriminator.backward()
                 self.discriminator_optimizer.step()
+                for p in self.model.discriminator.parameters():
+                    p.data.clamp_(-self.weight_clip, self.weight_clip)
 
                 # 2.update generator
 
                 # encoding - sampling - generator again
-                generator_output_2nd, point_feature_2nd, mu, log_var = model.generator(generator_input, gt_box)
-                discriminator_input_fake_2nd = {
-                    "feature": point_feature_2nd.squeeze(-1),
-                    "boxes": gt_box + generator_output_2nd
-                }
 
-                # discriminator judge and update generator
-                out_d_fake_2nd = model.discriminator(discriminator_input_fake_2nd['feature'], discriminator_input_fake_2nd['boxes'])
-                err_discriminator_2nd = -out_d_fake_2nd.mul(gt_valid_mask).sum() / gt_valid_elements
-                err_generator = 0.
-                if self.use_kld_loss:
-                    KLD_element = mu.pow(2).add_(log_var.exp()).mul_(-1).add_(1).add_(log_var)
-                    errG_KLD = torch.sigmoid(torch.sum(KLD_element))
-                    err_generator += errG_KLD
-                err_generator += err_discriminator_2nd
-                err_generator.backward()
-                self.generator_optimizer.step()
+                if step % self.n_critic == 0:
+                    generator_output_2nd, point_feature_2nd, mu, log_var = model.generator(generator_input, gt_box)
+                    discriminator_input_fake_2nd = {
+                        "feature": point_feature_2nd.squeeze(-1),
+                        "boxes": gt_box + generator_output_2nd
+                    }
+
+                    # discriminator judge and update generator
+                    out_d_fake_2nd = model.discriminator(discriminator_input_fake_2nd['feature'], discriminator_input_fake_2nd['boxes'])
+                    err_discriminator_2nd = -out_d_fake_2nd.mul(gt_valid_mask).sum() / gt_valid_elements
+                    err_generator = 0.
+                    if self.use_kld_loss:
+                        KLD_element = mu.pow(2).add_(log_var.exp()).mul_(-1).add_(1).add_(log_var)
+                        errG_KLD = torch.sigmoid(torch.sum(KLD_element) * (-0.5))
+                        err_generator += errG_KLD
+                    err_generator += err_discriminator_2nd
+                    err_generator.backward()
+                    self.generator_optimizer.step()
 
                 # print current status and logging: todo: distributed
                 if self.rank == 0:
@@ -213,8 +218,9 @@ class VAEGANTrainerPVRCNN(TrainerBase):
                                  )
                     self.logger.log_data("D_fake", err_fake.item(), True)
                     self.logger.log_data("D_real", err_real.item(), True)
-                    self.logger.log_data("G_fake_d", err_discriminator_2nd.item(), True)
-                    self.logger.log_data("G_fake", err_generator.item(), True)
+                    if step % self.n_critic == 0:
+                        self.logger.log_data("G_fake_d", err_discriminator_2nd.item(), True)
+                        self.logger.log_data("G_fake", err_generator.item(), True)
 
                 self.step = step
                 self.global_step += 1
