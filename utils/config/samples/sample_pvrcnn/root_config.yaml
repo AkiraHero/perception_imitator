@@ -23,3 +23,5 @@ training:
   trainer_class: VAEGANTrainerPVRCNN
   sync_bn: False
   use_kld_loss: True
+  n_critic: 2
+  weight_clip: 0.01
