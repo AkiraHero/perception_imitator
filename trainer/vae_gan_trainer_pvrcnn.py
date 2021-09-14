@@ -176,8 +176,8 @@ class VAEGANTrainerPVRCNN(TrainerBase):
                 assert out_d_fake.shape == out_d_real.shape
                 out_d_fake_selected = out_d_fake[gt_valid_inx[:, 0], gt_valid_inx[:, 1]]
                 out_d_real_selected = out_d_real[gt_valid_inx[:, 0], gt_valid_inx[:, 1]]
-                err_fake = loss_func(out_d_fake_selected, torch.zeros(out_d_fake_selected.shape, device=self.device))
-                err_real = loss_func(out_d_real_selected, torch.ones(out_d_real_selected.shape, device=self.device))
+                err_fake = loss_func(out_d_fake_selected, torch.zeros(out_d_fake_selected.shape, device=self.device)) / gt_valid_elements
+                err_real = loss_func(out_d_real_selected, torch.ones(out_d_real_selected.shape, device=self.device)) / gt_valid_elements
                 err_discriminator = err_fake + err_real
 
                 # update discriminator
@@ -201,7 +201,7 @@ class VAEGANTrainerPVRCNN(TrainerBase):
                     out_d_fake_2nd = model.discriminator(discriminator_input_fake_2nd['feature'], discriminator_input_fake_2nd['boxes'])
                     out_d_fake_2nd_selected = out_d_fake_2nd[gt_valid_inx[:, 0], gt_valid_inx[:, 1]]
                     err_discriminator_2nd = loss_func(out_d_fake_2nd_selected,
-                                                      torch.ones(out_d_fake_2nd_selected.shape, device=self.device))
+                                                      torch.ones(out_d_fake_2nd_selected.shape, device=self.device)) / gt_valid_elements
                     err_generator = 0.
                     if self.use_kld_loss:
                         KLD_element = mu.pow(2).add_(log_var.exp()).mul_(-1).add_(1).add_(log_var)
