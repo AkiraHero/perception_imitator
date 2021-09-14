@@ -77,14 +77,22 @@ if __name__ == '__main__':
                     cur_frm_result = {'ini_gt_inx': [],
                                       'gt_box': [],
                                       'prediction': [],
+                                      'target_box': [],
                                       'frame_id': data['frame_id'][batch_inx]
                                       }
                     for box_inx in box_indices:
-                        box_gt = gt_box[batch_inx][box_inx]
-                        prediction = generator_output[batch_inx][box_inx]
+                        box_gt = gt_box[batch_inx][box_inx].cpu().numpy()
+                        prediction = generator_output[batch_inx][box_inx].cpu().numpy()
+                        target_box = target_boxes[batch_inx][box_inx].cpu().numpy()
+                        print("box_gt", box_gt)
+                        print("prediction", prediction)
+                        print("target_box", target_box)
+                        print("===========================")
                         cur_frm_result['ini_gt_inx'].append(box_inx.item())
-                        cur_frm_result['gt_box'].append(box_gt.cpu().numpy())
-                        cur_frm_result['prediction'].append(prediction.cpu().numpy())
+                        cur_frm_result['gt_box'].append(box_gt)
+                        cur_frm_result['prediction'].append(prediction)
+                        cur_frm_result['target_box'].append(target_box)
+
                     output_data['predictions'].append(cur_frm_result)
         with open(output_file, 'wb') as f:
             pickle.dump(output_data, f)
