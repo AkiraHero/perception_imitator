@@ -73,7 +73,7 @@ class TrainerBase:
         raise NotImplementedError
 
     def load_state(self, log_file):
-        if not os.exists(log_file):
+        if not os.path.exists(log_file):
             raise FileNotFoundError(f'file not exist:{log_file}')
         params = None
         try:
