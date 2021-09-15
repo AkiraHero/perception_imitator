@@ -11,7 +11,7 @@ from collections import OrderedDict
 class PointNet2Encoder(ModelBase):
     def __init__(self, config):
         super(PointNet2Encoder, self).__init__()
-        self.key_pt_sample_num = 2048
+        self.key_pt_sample_num = 512
         normal_channel = False
         in_channel = 3 if normal_channel else 0
         self.normal_channel = normal_channel
