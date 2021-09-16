@@ -116,13 +116,15 @@ class VAEGANTrainerPVRCNNInstance(TrainerBase):
         gt[:, :gt_boxes.shape[1], :] = gt_boxes[:, :self.max_obj, :]
         return gt
 
-    def get_instance_cloud(self, batch_dict):
+    @staticmethod
+    def get_instance_cloud(batch_dict):
         points = batch_dict['points']
         point_inx = batch_dict['point_inx']
         batch_indices = points[:, 0].long()
         batch_size = batch_indices.unique().shape[0]
         src_points = points[:, 1:]
         point_dim = src_points.shape[1]
+        device = points.device
 
         instance_point_list = []
         instance_idx = 0
@@ -133,10 +135,10 @@ class VAEGANTrainerPVRCNNInstance(TrainerBase):
             for i in range(instance_num):
                 instance_points = cur_points[point_inx[bs_idx][i], :]
                 if instance_points.shape[0] > 0:
-                    instance_points = torch.cat([instance_idx * torch.ones(instance_points.shape[0], device=self.device, dtype=torch.float).reshape(-1,1), instance_points], dim=1)
+                    instance_points = torch.cat([instance_idx * torch.ones(instance_points.shape[0], device=device, dtype=torch.float).reshape(-1,1), instance_points], dim=1)
                 else:
-                    instance_points = torch.cat([instance_idx * torch.ones(1, device=self.device, dtype=torch.float).reshape(1,1),
-                                                 torch.zeros(point_dim, device=self.device, dtype=torch.float).reshape(1, -1)], dim=1)
+                    instance_points = torch.cat([instance_idx * torch.ones(1, device=device, dtype=torch.float).reshape(1,1),
+                                                 torch.zeros(point_dim, device=device, dtype=torch.float).reshape(1, -1)], dim=1)
 
                 instance_point_list.append(instance_points)
                 instance_idx += 1

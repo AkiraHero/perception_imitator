@@ -7,7 +7,7 @@ from factory.dataset_factory import DatasetFactory
 import torch
 import os
 import datetime
-
+from trainer.vae_gan_trainer_pvrcnn_instance import VAEGANTrainerPVRCNNInstance
 # todo: support 1.distributed testing 2.logger custimized for testing
 if __name__ == '__main__':
 
@@ -68,10 +68,11 @@ if __name__ == '__main__':
                 raise TypeError("gt_box and target_box must have same shape")
 
             with torch.no_grad():
-                generator_input = data['points']
+                # generator_input = data['points']
+                generator_input = VAEGANTrainerPVRCNNInstance.get_instance_cloud(data)
                 generator_output, point_feature, _, _ = model.generator(generator_input, gt_box_ext)
                 # save by frm
-
+                prediction_inx = 0
                 for batch_inx in range(gt_valid_mask.shape[0]):
                     box_indices = gt_valid_mask[batch_inx].nonzero()
                     cur_frm_result = {'ini_gt_inx': [],
@@ -82,7 +83,8 @@ if __name__ == '__main__':
                                       }
                     for box_inx in box_indices:
                         box_gt = gt_box[batch_inx][box_inx].cpu().numpy()
-                        prediction = generator_output[batch_inx][box_inx].cpu().numpy()
+                        prediction = generator_output[prediction_inx].cpu().numpy()
+                        prediction_inx += 1
                         target_box = target_boxes[batch_inx][box_inx].cpu().numpy()
                         print("box_gt", box_gt)
                         print("prediction", prediction)
