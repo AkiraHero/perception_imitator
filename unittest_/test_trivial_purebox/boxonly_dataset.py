@@ -44,11 +44,11 @@ class SimpleDataset(Dataset):
         super(Dataset, self).__init__()
         self.is_train = is_train
         self.batch_size = batch_size
-        db_file = "/home/akira/Downloads/kitti_pvrcnn_all.pkl"
+        db_file = "/home/xlju/Project/ModelSimulator/data/kitti/kitti_pvrcnn_all.pkl"
         with open(db_file, 'rb') as f:
             self.db = pickle.load(f)
         self.train_frm_ratio = 0.6
-        train_test_dataset_division_file = "train_test_sample.pkl"
+        train_test_dataset_division_file = "/home/xlju/Project/ModelSimulator/data/kitti/train_test_sample.pkl"
         train_test_dataset_division = None
         if os.path.exists(train_test_dataset_division_file):
             with open(train_test_dataset_division_file, 'rb') as f:
@@ -78,7 +78,7 @@ class SimpleDataset(Dataset):
             self.item_list = [i for i in self.item_list if i['detected']]
             pass
         get_discrete_cls = 1
-        discrete_cls_num = 4
+        discrete_cls_num = 6
         if get_discrete_cls:
             # get segment
             box_diff = np.concatenate([i['box_diff'].reshape(1, -1) for i in self.item_list if i['detected']], axis=0)

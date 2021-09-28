@@ -3,3 +3,5 @@ output/*
 .idea
 data/*
 *.pt
+*.png
+*.pkl

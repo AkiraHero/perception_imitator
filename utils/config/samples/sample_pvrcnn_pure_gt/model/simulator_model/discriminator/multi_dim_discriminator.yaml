@@ -1,0 +1,9 @@
+name: multi_dim_mlp_discriminator
+paras:
+  sub_mlp_num: 8
+  feature_encoding_model:
+    config_file: model/simulator_model/discriminator/fe_discriminator.yaml
+    model_class: MLP
+  sub_mlp:
+    config_file: model/simulator_model/discriminator/mlp_discriminator.yaml
+    model_class: MLP

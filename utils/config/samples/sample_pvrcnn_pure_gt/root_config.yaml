@@ -1,0 +1,27 @@
+dataset:
+  config_file: dataset/kitti3dobj.yaml
+  dataset_class: Kitti3dObjectBoxDataset
+logging:
+  ckpt_eph_interval: 2
+  path: ../output
+  suffix: 'train_target_PVRCNN'
+model:
+  config_file: model/simulator_model/vae_gan.yaml
+  model_class: VAEGANModel
+training:
+  device: 'cuda:0'
+  epoch: 100
+  optimizer:
+  - name: encoder_opt
+    paras:
+      lr: 0.00005
+    type: RMSprop
+  - name: discriminator_opt
+    paras:
+      lr: 0.00005
+    type: RMSprop
+  trainer_class: VAEGANTrainerPVRCNNPureGT
+  sync_bn: False
+  use_kld_loss: True
+  n_critic: 2
+  weight_clip: 0.01

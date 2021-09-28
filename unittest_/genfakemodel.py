@@ -10,7 +10,7 @@ with open(
         'rb') as f:
     matching_result = pickle.load(f)
 
-outpath = "/home/xlju/data/pvrcnn_fake_model"
+outpath = "/home/xlju/data/pvrcnn_fake_model_"
 
 class_map = {
     'Car': 1,
@@ -42,11 +42,12 @@ def find_interested_gt_index(gt_annos, class_map):
             indices.append(idx)
     return indices
 
-
+output_dict_list = []
+pkl = "kitti_pvrcnn_all.pkl"
 for idx, i in enumerate(matching_result['dt_annos']):
     print("processing:", idx)
     name = i['frame_id'] + '.pkl'
-    pkl = os.path.join(outpath, name)
+
     matching_info = {
         'camera': matching_result['camera'][idx],
         'bev': matching_result['bev'][idx],
@@ -62,5 +63,7 @@ for idx, i in enumerate(matching_result['dt_annos']):
     output_dict['model_info'] = "pv_rcnn_8369.pth"
     output_dict['frame_id'] = i['frame_id']
     output_dict['ordered_lidar_boxes'] = sort_box_(i, matching_result_valid)
-    with open(pkl, 'wb') as f:
-        pickle.dump(output_dict, f)
+    output_dict['ini_frm_annos'] = gt_annos
+    output_dict_list.append(output_dict)
+with open(pkl, 'wb') as f:
+    pickle.dump(output_dict_list, f)
