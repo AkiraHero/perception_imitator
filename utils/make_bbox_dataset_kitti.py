@@ -17,7 +17,7 @@ if __name__ == '__main__':
         # default test settings
         args.for_train = False
         args.shuffle = False
-        args.batch_size = 1
+        args._batch_size = 1
 
         config.load_config(args.cfg_dir)
         config.overwrite_config_by_shell_args(args)

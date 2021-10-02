@@ -35,8 +35,14 @@ class BasicLogger:
         self._status_hook = None
         self.root_log_dir = config_dict['logging']['path']
         self.log_suffix = config_dict['logging']['suffix']
+        self._ckpt_eph_interval = config_dict['logging']['ckpt_eph_interval']
+        if not isinstance(self._ckpt_eph_interval, int):
+            self._ckpt_eph_interval = 0
         date_time_str = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
-        self._cur_instance_root_log_dir = "-".join([date_time_str, self.log_suffix])
+        if self.log_suffix is None or len(self.log_suffix) == 0:
+            self._cur_instance_root_log_dir = date_time_str
+        else:
+            self._cur_instance_root_log_dir = "-".join([date_time_str, self.log_suffix])
         self._tensor_board_log_dir = os.path.join(self.root_log_dir, self._cur_instance_root_log_dir, "tensor_board")
         self._data_log_dir = os.path.join(self.root_log_dir, self._cur_instance_root_log_dir, "data_log")
         self._model_para_log_dir = os.path.join(self.root_log_dir, self._cur_instance_root_log_dir, "model_paras_log")
@@ -97,20 +103,23 @@ class BasicLogger:
         self._add_to_pickle(status, data_name, data_content)
 
     def log_model_params(self, model):
+        # skip when ckpt_eph_interval is set
+        status = self._status_hook()
+        epoch = status['epoch']
+        step = status['step']
+        if epoch % self._ckpt_eph_interval != 0:
+            return
         if model is not None:
             if isinstance(model, torch.nn.parallel.DistributedDataParallel):
                 model = model.module
 
         if not isinstance(model, ModelBase):
             raise TypeError("input type must have class attribute of ModelBase!")
-        status = self._status_hook()
         para_dict = {
             "status": status,
             "model_paras": model.state_dict()
         }
         date_time_str = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
-        epoch = status['epoch']
-        step = status['step']
         pickle_name = "-".join([f'model_ckpt-epoth{epoch}-step{step}', date_time_str]) + ".pt"
         with open(os.path.join(self._model_para_log_dir, pickle_name), 'wb') as f:
             # pickle.dump(para_dict, f)

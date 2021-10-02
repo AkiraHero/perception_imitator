@@ -1,0 +1,19 @@
+name: multiple_head_mlp
+paras:
+  # detect_or_not, box[x, y, z, w, h, l, rot, cls]
+  backbone:
+    config_file: model/mlp_backbone.yaml
+    model_class: MLP
+
+  fn_predictor:
+    config_file: model/mlp_fn_prediction.yaml
+    model_class: MLP
+
+  cls_predictor:
+    config_file: model/mlp_cls_prediction.yaml
+    model_class: MLP
+
+  # box[x, y, z, w, h, l, rot, cls]
+  box_err_predictor_heads:
+    config_file: model/mlp_head.yaml
+    model_class: MLP

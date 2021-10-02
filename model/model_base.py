@@ -1,5 +1,4 @@
 import logging
-import os
 import pickle
 
 import torch
@@ -69,12 +68,3 @@ class ModelBase(nn.Module):
                 err = f'Required config {i} does not exist.'
                 raise KeyError(err)
 
-    @staticmethod
-    def build_module(config):
-        raise NotImplementedError
-
-    @classmethod
-    def register_class(cls):
-        for i in cls.__subclasses__():
-            cls.module_class_list[i.__name__] = i
-            print(i.__name__)

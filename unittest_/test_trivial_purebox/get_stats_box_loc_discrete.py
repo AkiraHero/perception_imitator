@@ -1,14 +1,7 @@
-import pickle
 import torch
 import torch.nn as nn
-from torch.utils.data import Dataset
-import torch.nn.functional as F
-import numpy as np
-import os
-from torch.utils.data import DataLoader
 from tensorboardX.writer import SummaryWriter
-from analysis.model_error_analysis.get_detection3d_error_stats import get_error, plot_error_statistics, get_discrete_distribution_diff, get_error_segs
-from boxonly_dataset import SimpleDataset, load_data2gpu
+from dataset.boxonly_dataset import SimpleDataset, load_data2gpu
 
 
 class SimpleMLP(nn.Module):
