@@ -14,7 +14,11 @@ for root, dirs, files in os.walk(path, topdown=False):
 for py in py_list:
     mod_name = '.'.join([__name__, *(py.split('/'))])
     mod_name = mod_name[:-3]
-    mod = __import__(mod_name, fromlist=[mod_name])
+    try:
+        mod = __import__(mod_name, fromlist=[mod_name])
+    except ModuleNotFoundError as e:
+        print(e.msg)
+        print("Fail to import submodule:", mod_name)
     classes = [getattr(mod, x) for x in dir(mod) if isinstance(getattr(mod, x), type)]
     for cls in classes:
         if "dataset" in str(cls):
