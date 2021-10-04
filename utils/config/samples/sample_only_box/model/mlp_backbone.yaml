@@ -4,7 +4,7 @@ paras:
   layer_act_func:
   - relu
   - relu
-  - none
+  - relu
   layer_node_num:
   - 200
   - 100

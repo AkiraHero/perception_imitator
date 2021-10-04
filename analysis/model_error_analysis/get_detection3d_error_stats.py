@@ -27,7 +27,10 @@ marginalize_list=[
 
 def get_error(box_gt, box_dt):
     # get box diff
+    # screen invalid ones
+    inx, = (box_dt[:, 7] > 0).nonzero()
     box_diff = box_dt[:, :7] - box_gt[:, :7]
+    box_diff = box_diff[inx, :]
     rot_diff = np.arctan(np.tan(box_diff[:, 6]))
     box_diff[:, 6] = rot_diff
     return box_diff
@@ -61,6 +64,34 @@ def plot_error_statistics(box_gt, box_dt):
     datadict['r'] = {'data': box_diff[:, 6], 'label': 'rot'}
     fig1 = plot_binbox(datadict, "Box Error Distribution", size=(5, 5))
     return fig1
+
+def plot_error_distribution(box_gt, box_dt):
+    box_diff = get_error(box_gt, box_dt)
+    dims = ['x', 'y', 'z', 'w', 'h', 'l', 'rot']
+    for inx, dim_name in enumerate(dims):
+        data = box_diff[:, inx]
+        fig = plt.figure()
+        plt.hist(data, bins=200)
+        plt.title("Distribution of err on " + dim_name)
+        plt.savefig("distribution_err_" + dim_name + '.png')
+
+    # draw 2d joint distribution
+    for inx1, dim_name1 in enumerate(dims):
+        for inx2, dim_name2 in enumerate(dims[inx1 + 1:]):
+            data1 = box_diff[:, inx1]
+            data2 = box_diff[:, inx2]
+            fig = plt.figure()
+            plt.hist2d(data1, data2, bins=200)
+            plt.title("Joint distribution of err " + dim_name1 + " and " + dim_name2)
+            plt.savefig("Joint_distribution_err_" + dim_name1 + "_" + dim_name2 + '.png')
+    # datadict = {}
+    # datadict['x'] = {'data': box_diff[:, 0], 'label': 'x'}
+    # datadict['y'] = {'data': box_diff[:, 1], 'label': 'y'}
+    # datadict['z'] = {'data': box_diff[:, 2], 'label': 'z'}
+    # datadict['w'] = {'data': box_diff[:, 3], 'label': 'w'}
+    # datadict['h'] = {'data': box_diff[:, 4], 'label': 'h'}
+    # datadict['l'] = {'data': box_diff[:, 5], 'label': 'l'}
+    # datadict['r'] = {'data': box_diff[:, 6], 'label': 'rot'}
 
 
 def get_error_segs(box_gt, box_dt, class_num=4):

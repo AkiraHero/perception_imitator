@@ -37,16 +37,17 @@ class MultipleHeadMLPTrainer(TrainerBase):
                 # tips:
                 # if loss can be decided by model self without considering the training logistics
                 # please calculate/set loss in model
-                loss = self.model.get_loss()
-                loss['loss'].backward()
+                loss_dict = self.model.get_loss()
+                loss_dict['total'].backward()
+                self.optimizer.step()
 
                 # print current status and logging
                 if not self.distributed or self.rank == 0:
                     logging.info(f'[loss] Epoch={epoch}/{self.max_epoch}, step={step}/{len(self.data_loader)}\t'
-                                 f'loss={loss["loss"]:.6f}\t'
+                                 f'loss={loss_dict["total"]:.6f}\t'
                                  )
-                    for i in loss.keys():
-                        self.logger.log_data(i, loss[i].item(), True)
+                    for i in loss_dict.keys():
+                        self.logger.log_data(i, loss_dict[i].item(), True)
                 self.step = step
                 self.global_step += 1
             if not self.distributed or self.rank == 0:

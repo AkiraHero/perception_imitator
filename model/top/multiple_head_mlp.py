@@ -2,6 +2,7 @@ from model.model_base import ModelBase
 import factory.model_factory as mf
 import torch.nn as nn
 import torch
+
 '''
 multiple heads for predict box error 
     heads including: x, y, z, w, h, l, rot
@@ -16,7 +17,7 @@ class MultipleHeadMLP(ModelBase):
         self.cls_predictor = mf.ModelFactory.get_model(config['paras']['cls_predictor'])
 
         # box[x, y, z, w, h, l, rot, cls]
-        self.head_name = ['fn', 'x', 'y', 'z', 'w', 'h', 'l', 'rot']
+        self.head_name = ['x', 'y', 'z', 'w', 'h', 'l', 'rot']
         for name in self.head_name:
             self.add_module(name, mf.ModelFactory.get_model(config['paras']['box_err_predictor_heads']))
 
@@ -49,48 +50,30 @@ class MultipleHeadMLP(ModelBase):
 
     def get_loss(self):
         # loss for fn prediction: class 1: detected, 0: non-detected
+        loss_dict = {}
         data = self.data
         target_fn = data['detected']
         batch_size = target_fn.shape[0]
         loss_weight = torch.ones(target_fn.shape, device=target_fn.device)
-        detected_inx = (target_fn == 1).nonzero()
-        non_detected_inx = (target_fn == 0).nonzero()
-        loss_weight[detected_inx] = self.tp_loss_weight
-        loss_weight[non_detected_inx] = self.fn_loss_weight
-        loss_fp = self.fn_loss_func(self.fn_prediction, target_fn).mul(loss_weight).sum() / batch_size
+        detected_inx = (target_fn.squeeze(-1) == 1).nonzero()
+        non_detected_inx = (target_fn.squeeze(-1) == 0).nonzero()
+        loss_weight[detected_inx, :] = self.tp_loss_weight
+        loss_weight[non_detected_inx, :] = self.fn_loss_weight
+        loss_dict['fp'] = self.fn_loss_func(self.fn_prediction, target_fn).mul(loss_weight).sum() / batch_size
 
-        # loss for error prediction of box location / dimension
-        target_x = data['box_diff_cls'][:, 0, :].long()
-        target_y = data['box_diff_cls'][:, 1, :].long()
-        target_z = data['box_diff_cls'][:, 2, :].long()
-        target_w = data['box_diff_cls'][:, 3, :].long()
-        target_h = data['box_diff_cls'][:, 4, :].long()
-        target_l = data['box_diff_cls'][:, 5, :].long()
-        target_rot = data['box_diff_cls'][:, 6, :].long()
+        detected_mask = data['detected'].squeeze(-1)
+        valid_batch_size = len((detected_mask == 1).nonzero())
+
+        for inx, name in enumerate(self.head_name):
+            target_ = data['box_diff_cls'][:, inx, :].long()
+            loss_dict[name] = self.head_loss_func(self.box_err_prediction[name], target_.reshape(-1, )) \
+                                  .mul(detected_mask).sum() / valid_batch_size
 
         # loss for class prediction imitating the target model
         target_cls = data['dt_box'][:, 7].long()
-        detected_mask = data['detected'].squeeze(-1)
-        target_cls[(detected_mask==1).nonzero()] -= 1
-
-        loss_x = self.head_loss_func(self.box_err_prediction['x'], target_x.reshape(-1, )).mul(detected_mask).sum() / batch_size
-        loss_y = self.head_loss_func(self.box_err_prediction['y'], target_y.reshape(-1, )).mul(detected_mask).sum() / batch_size
-        loss_z = self.head_loss_func(self.box_err_prediction['z'], target_z.reshape(-1, )).mul(detected_mask).sum() / batch_size
-        loss_w = self.head_loss_func(self.box_err_prediction['w'], target_w.reshape(-1, )).mul(detected_mask).sum() / batch_size
-        loss_h = self.head_loss_func(self.box_err_prediction['h'], target_h.reshape(-1, )).mul(detected_mask).sum() / batch_size
-        loss_l = self.head_loss_func(self.box_err_prediction['l'], target_l.reshape(-1, )).mul(detected_mask).sum() / batch_size
-        loss_rot = self.head_loss_func(self.box_err_prediction['rot'], target_rot.reshape(-1, )).mul(detected_mask).sum() / batch_size
-        loss_cls = self.cls_loss_func(self.cls_prediction, target_cls).mul(detected_mask).sum() / batch_size
-        self.loss = loss_fp + loss_x + loss_y + loss_z + loss_w + loss_h + loss_l + loss_rot + loss_cls
-        return {
-            'loss': self.loss,
-            'loss_fp': loss_fp,
-            'loss_x': loss_x,
-            'loss_y': loss_y,
-            'loss_z': loss_z,
-            'loss_w': loss_w,
-            'loss_h': loss_h,
-            'loss_l': loss_l,
-            'loss_rot': loss_rot,
-            'loss_cls': loss_cls,
-        }
+        target_cls[(detected_mask == 1).nonzero()] -= 1
+        loss_dict['cls'] = self.cls_loss_func(self.cls_prediction, target_cls).mul(
+            detected_mask).sum() / valid_batch_size
+        self.loss = sum(loss_dict.values())
+        loss_dict['total'] = self.loss
+        return loss_dict

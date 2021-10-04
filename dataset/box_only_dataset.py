@@ -17,8 +17,8 @@ Dataset for bounding boxes loading
 class BoxOnlyDataset(DatasetBase):
     def __init__(self, config):
         super(DatasetBase, self).__init__()
-        load_all = None
-        screen_no_dt = False
+        load_all = None if "load_all" not in config['paras'].keys() else config['paras']['load_all']
+        screen_no_dt = False if "screen_no_dt" not in config['paras'].keys() else config['paras']['screen_no_dt']
         self._is_train = config['paras']['for_train']
         self._batch_size = config['paras']['batch_size']
         self._data_root = config['paras']['data_root']
@@ -62,7 +62,8 @@ class BoxOnlyDataset(DatasetBase):
         discrete_cls_num = 6
         if get_discrete_cls:
             # get segment
-            box_diff = np.concatenate([i['box_diff'].reshape(1, -1) for i in self.item_list if i['detected']], axis=0)
+            all_item_list = BoxOnlyDataset.get_data_dict(self._db)
+            box_diff = np.concatenate([i['box_diff'].reshape(1, -1) for i in all_item_list if i['detected']], axis=0)
             segs = self.get_error_segs(box_diff, class_num=discrete_cls_num)
             self.segs = segs
             for i in self.item_list:

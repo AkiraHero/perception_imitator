@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from tensorboardX.writer import SummaryWriter
-from dataset.boxonly_dataset import SimpleDataset, load_data2gpu
+from dataset.box_only_dataset import BoxOnlyDataset
 
 
 class SimpleMLP(nn.Module):
@@ -38,7 +38,17 @@ is_train = 0
 # method1: input box itself
 #######################################################################################
 if is_train:
-    dataset = SimpleDataset(screen_no_dt=True, batch_size=2048)
+    config = {
+        'paras': {
+            "for_train": True,
+            "batch_size": 2048,
+            "data_root": "../../data/kitti",
+            "num_workers": 0,
+            "load_all": False,
+            "screen_no_dt": True
+        }
+    }
+    dataset = BoxOnlyDataset(config)
     data_loader = dataset.get_data_loader()
     max_epoch = 1800
     model = SimpleMLP()
@@ -46,13 +56,13 @@ if is_train:
     optimizer = torch.optim.RMSprop(lr=0.001, params=model.parameters())
     loss_func = nn.CrossEntropyLoss()
     torch.autograd.set_detect_anomaly(True)
-    writer = SummaryWriter(logdir="/home/xlju/tmp_tb")
+    writer = SummaryWriter(logdir="/home/akira/tmp_tb")
     iter = 0
     for epoch in range(max_epoch):
         for step, data in enumerate(data_loader):
             optimizer.zero_grad()
             model.zero_grad()
-            load_data2gpu(data)
+            BoxOnlyDataset.load_data2gpu(data)
             input_ = data['gt_box']
             batch_size = input_.shape[0]
             target_x = data['box_diff_cls'][:, 0, :].long()
@@ -77,7 +87,17 @@ if is_train:
 else:
     # test
     with torch.no_grad():
-        dataset_test = SimpleDataset(is_train=False, batch_size=100000000000000, screen_no_dt=True)
+        config = {
+            'paras': {
+                "for_train": False,
+                "batch_size": 100000000000000,
+                "data_root": "../../data/kitti",
+                "num_workers": 0,
+                "load_all": False,
+                "screen_no_dt": True
+            }
+        }
+        dataset_test = BoxOnlyDataset(config)
         data_loader_test = dataset_test.get_data_loader()
         target_epoch = 1799
         para_file = "model_loc_discrete_x-epoch{}.pt".format(target_epoch)
@@ -90,7 +110,7 @@ else:
 
         for step, data in enumerate(data_loader_test):
 
-            load_data2gpu(data)
+            BoxOnlyDataset.load_data2gpu(data)
             input_ = data['gt_box']
             batch_size = input_.shape[0]
 
