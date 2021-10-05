@@ -17,7 +17,7 @@ Dataset for bounding boxes loading
 class BoxOnlyDataset(DatasetBase):
     def __init__(self, config):
         super(DatasetBase, self).__init__()
-        load_all = None if "load_all" not in config['paras'].keys() else config['paras']['load_all']
+        load_all = False if "load_all" not in config['paras'].keys() else config['paras']['load_all']
         screen_no_dt = False if "screen_no_dt" not in config['paras'].keys() else config['paras']['screen_no_dt']
         self._is_train = config['paras']['for_train']
         self._batch_size = config['paras']['batch_size']
@@ -45,7 +45,7 @@ class BoxOnlyDataset(DatasetBase):
                 pickle.dump(d, f)
         self.train_db = [self._db[i] for i in train_list]
         self.test_db = [self._db[i] for i in test_list]
-        if load_all is None or load_all is False:
+        if not load_all:
             if self._is_train:
                 self.item_list = BoxOnlyDataset.get_data_dict(self.train_db)
                 pass
