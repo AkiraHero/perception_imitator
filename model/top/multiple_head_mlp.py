@@ -47,6 +47,11 @@ class MultipleHeadMLP(ModelBase):
         self.box_err_prediction = {i: self._modules[i](x) for i in self.head_name}
         self.cls_prediction = self.cls_predictor(x)
         self.data = data
+        return {
+            "fn_prediction": self.fn_prediction,
+            "box_err_prediction": self.box_err_prediction,
+            "cls_prediction": self.cls_prediction
+        }
 
     def get_loss(self):
         # loss for fn prediction: class 1: detected, 0: non-detected

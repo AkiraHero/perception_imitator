@@ -45,7 +45,7 @@ class BoxOnlyDataset(DatasetBase):
                 pickle.dump(d, f)
         self.train_db = [self._db[i] for i in train_list]
         self.test_db = [self._db[i] for i in test_list]
-        if load_all is None:
+        if load_all is None or load_all is False:
             if self._is_train:
                 self.item_list = BoxOnlyDataset.get_data_dict(self.train_db)
                 pass

@@ -99,7 +99,7 @@ else:
         }
         dataset_test = BoxOnlyDataset(config)
         data_loader_test = dataset_test.get_data_loader()
-        target_epoch = 1799
+        target_epoch = 900
         para_file = "model_loc_discrete_x-epoch{}.pt".format(target_epoch)
         model = SimpleMLP()
         model.cuda()
