@@ -1,0 +1,7 @@
+name: vae_fp
+paras:
+  latent_distribution: Gaussian
+  submodules:
+    encoder:
+      config_file: model/vae_encoder.yaml
+      model_class: MLP

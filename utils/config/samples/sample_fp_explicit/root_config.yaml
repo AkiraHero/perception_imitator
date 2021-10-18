@@ -1,0 +1,19 @@
+# for train vae-wgan model using main/train.py on minist dataset
+dataset:
+  config_file: dataset/fp_explicit_dataset.yaml
+  dataset_class: TpFpDataset
+logging:
+  ckpt_eph_interval: 50
+  path: ../output
+  suffix: 'fp_explicit'
+model:
+  config_file: model/mlp.yaml
+  model_class: MLP
+training:
+  device: 'cuda:0'
+  epoch: 1000
+  optimizer:
+    paras:
+      lr: 0.001
+    type: RMSprop
+  trainer_class: FpExplicitTrainer

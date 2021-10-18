@@ -37,7 +37,8 @@ class ModelBase(nn.Module):
 
     def load_model_paras(self, params):
         if params is not None:
-            super(ModelBase, self).load_state_dict(params['model_paras'])
+            # super(ModelBase, self).load_state_dict(params['model_paras'])
+            super(ModelBase, self).load_state_dict(params)
         else:
             raise AssertionError('Fail to load params for model.')
 

@@ -10,4 +10,4 @@ paras:
     target_model:
       config_file: model/cnn.yaml
       model_class: CNN
-      model_para_file: /home/xlju/Project/ModelSimulator/model_paras/param_minist_5.pt
+      model_para_file: D:/1Pjlab/ModelSimulator/model_paras/param_minist_5.pt

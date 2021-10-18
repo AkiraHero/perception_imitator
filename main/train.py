@@ -3,6 +3,8 @@ import logging
 import signal
 import traceback
 import subprocess
+import sys
+sys.path.append('D:/1Pjlab/ModelSimulator/')
 from utils.config.Configuration import Configuration
 from factory.model_factory import ModelFactory
 from factory.dataset_factory import DatasetFactory

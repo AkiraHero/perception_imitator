@@ -1,0 +1,7 @@
+dataset_class: FpBoxOnlyDataset
+paras:
+  batch_size: 2048
+  data_root: D:/1Pjlab/ModelSimulator/data
+  for_train: true
+  num_workers: 4
+  shuffle: true
