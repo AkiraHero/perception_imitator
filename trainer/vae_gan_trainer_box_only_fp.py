@@ -48,8 +48,6 @@ class VAEGANTrainerBoxOnlyFP(TrainerBase):
                 self.step = step
                 self.global_step += 1
 
-                print(data.shape)
-
                 dt_box_fp = data.to(device=self.device)
                 cur_batch_size = data.shape[0]
 

@@ -14,6 +14,6 @@ training:
   epoch: 1000
   optimizer:
     paras:
-      lr: 0.001
-    type: RMSprop
+      lr: 0.00005
+    type: Adam
   trainer_class: FpExplicitTrainer

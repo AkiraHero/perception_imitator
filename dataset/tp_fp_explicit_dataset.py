@@ -9,6 +9,8 @@ from torch.utils.data import DataLoader
 '''
 Dataset for bounding boxes loading
     tp & fp explicit feature
+    7_bbox_para, class, refl_u, refl_sigma, point_num
+    label: tp ot fp (0 or 1)
 
 '''
 
@@ -23,11 +25,16 @@ class TpFpDataset(DatasetBase):
         self._num_workers = config['paras']['num_workers']
         self._shuffle = config['paras']['shuffle']
 
-        db_file = os.path.join(self._data_root, "gt_dt_matching_res.pkl")
+        db_file = os.path.join(self._data_root, "fp_explicit_data.pkl")
         with open(db_file, 'rb') as f:
-            self._db = pickle.load(f)
+            self._tpfp = pickle.load(f)
 
-        # self.item_list = torch.Tensor(self._fpbox['fp_bbox'])
+        train_data_size = int(len(self._tpfp['datas']) * 0.8)
+        self.item_list_all = np.concatenate((np.array(self._tpfp['datas']), np.array(self._tpfp['labels'])), axis=1)
+        if self._is_train == True:
+            self.item_list = self.item_list_all[:train_data_size, :]
+        else:
+            self.item_list = self.item_list_all[train_data_size:, :]
 
     def get_data_loader(self, distributed=False):
         return DataLoader(
