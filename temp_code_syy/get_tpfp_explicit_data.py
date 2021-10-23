@@ -19,8 +19,7 @@ def gt_str2num(label):
     return d[label]  
 
 def get_fp_explicit_dataset_pkl():
-    datas = []
-    labels = [] 
+    fp_explicit_datas = []
 
     cloud_path = "F:/Kitti/data_object_velodyne/training/cloud_in_bbox"
     data_root = "D:/1Pjlab/ModelSimulator/data"
@@ -48,16 +47,16 @@ def get_fp_explicit_dataset_pkl():
         data = bbox_para.tolist() + [cls_id, refl_u, refl_sigma, point_num]
         label = [gt]
         
-        datas.append(data)
-        labels.append(label)
+        fp_explicit_data = {'image': img_id, 'dtbox_id': dt_box_id ,'data': data, 'label':label}
+        
+        fp_explicit_datas.append(fp_explicit_data)
 
-    fp_explicit_data = {'datas': datas, 'labels':labels}
-    print(len(fp_explicit_data['datas']))
+    print(len(fp_explicit_datas))
 
     #存储fp bbox数据为pkl文件
-    fp_explicit_file = "D:/1Pjlab/ModelSimulator/data/fp_explicit_data.pkl"
+    fp_explicit_file = "D:/1Pjlab/ModelSimulator/data/tpfp_explicit_data.pkl"
     with open(fp_explicit_file, "wb") as f:
-        pickle.dump(fp_explicit_data, f)
+        pickle.dump(fp_explicit_datas, f)
 
 
 if __name__ == '__main__':

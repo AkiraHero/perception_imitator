@@ -25,16 +25,18 @@ class TpFpDataset(DatasetBase):
         self._num_workers = config['paras']['num_workers']
         self._shuffle = config['paras']['shuffle']
 
-        db_file = os.path.join(self._data_root, "fp_explicit_data.pkl")
+        db_file = os.path.join(self._data_root, "tpfp_explicit_data.pkl")
         with open(db_file, 'rb') as f:
             self._tpfp = pickle.load(f)
 
-        train_data_size = int(len(self._tpfp['datas']) * 0.8)
-        self.item_list_all = np.concatenate((np.array(self._tpfp['datas']), np.array(self._tpfp['labels'])), axis=1)
-        if self._is_train == True:
-            self.item_list = self.item_list_all[:train_data_size, :]
-        else:
-            self.item_list = self.item_list_all[train_data_size:, :]
+        # train_data_size = int(len(self._tpfp) * 0.8)
+        # if self._is_train == True:
+        #     self.item_list = self._tpfp[:train_data_size]
+        # else:
+        #     self.item_list = self._tpfp[train_data_size:]
+
+        # 为了得到所有图片中fp的质量，还是对于所有数据进行训练并测试
+        self.item_list = self._tpfp
 
     def get_data_loader(self, distributed=False):
         return DataLoader(
@@ -50,3 +52,16 @@ class TpFpDataset(DatasetBase):
 
     def __len__(self):
         return len(self.item_list)
+
+    @staticmethod
+    def load_data2gpu(data):
+        for k, v in data.items():
+            if k in ['data']:
+                v = torch.stack(v, 0)
+                v = v.transpose(0,1).to(torch.float32)
+                v = v.cuda()
+                data[k] = v
+            elif k in ['label']:
+                v = v[0]
+                v = v.cuda()
+                data[k] = v

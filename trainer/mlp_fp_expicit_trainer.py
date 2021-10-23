@@ -1,3 +1,4 @@
+from torch._C import device
 from trainer.trainer_base import TrainerBase
 import torch.nn as nn
 import torch
@@ -38,9 +39,10 @@ class FpExplicitTrainer(TrainerBase):
                 self.step = step
                 self.global_step += 1
                 self.optimizer.zero_grad()
+                self.dataset.load_data2gpu(data)
 
-                explicit_data = data[:,:-1].float().to(device=self.device)
-                label = torch.eye(2)[data[:,-1].long(),:].to(device=self.device)
+                explicit_data = data['data']
+                label = torch.eye(2)[data['label'],:].cuda()    # get one-hot
 
                 pred = self.model(explicit_data)
 
@@ -58,7 +60,5 @@ class FpExplicitTrainer(TrainerBase):
                 self.logger.log_data(loss.item(), True)
 
                 if epoch % 10 == 0:
-                    torch.save(self.model.state_dict(), 'D:/1Pjlab/ModelSimulator/output/fp_explicit_model/' + str(epoch) + ".pt")
-
-
+                    torch.save(self.model.state_dict(), 'D:/1Pjlab/ModelSimulator/output/fp_explicit_model/1024-2048-2048-2/' + str(epoch) + ".pt")
 
