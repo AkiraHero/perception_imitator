@@ -1,7 +1,6 @@
 *__pycache__
 output/*
 .idea
-data/*
 *.pt
 *.png
 *.pkl
