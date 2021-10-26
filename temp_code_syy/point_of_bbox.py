@@ -1,3 +1,5 @@
+# 提取检测框中的所有点云
+
 import numpy as np
 import os
 import pickle
@@ -301,7 +303,7 @@ def get_kitti_object_cloud_v2():
     # print(db['dt_annos'][num])
     # print(db['gt_annos'][num])
 
-    for img_id in range(386,7481):
+    for img_id in range(0,7481):
         print("now processing: %06d"%img_id)
         lidar_path = r'F:/Kitti/data_object_velodyne/training/velodyne/%06d.bin' % img_id  ## Path ## need to be changed
         # label_path = r'D:\KITTI\Object\training\label_2\%06d.txt' % img_id  ## Path ## need to be changed

@@ -1,0 +1,7 @@
+dataset_class: FpDifficultDataset
+paras:
+  batch_size: 512
+  data_root: D:/1Pjlab/ModelSimulator/data
+  for_train: true
+  num_workers: 4
+  shuffle: trues
