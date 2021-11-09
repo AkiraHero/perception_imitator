@@ -6,4 +6,4 @@ paras:
       model_class: MLP
     generator:
       config_file: model/vae.yaml
-      model_class: VAEFP
+      model_class: VAEFPExplicit

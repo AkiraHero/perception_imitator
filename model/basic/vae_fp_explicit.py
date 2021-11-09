@@ -5,9 +5,9 @@ import torch.nn.functional as F
 import torch
 
 
-class VAEFP(ModelBase):
+class VAEFPExplicit(ModelBase):
     def __init__(self, config):
-        super(VAEFP, self).__init__()
+        super(VAEFPExplicit, self).__init__()
         self.encoder = ModelFactory.ModelFactory.get_model(config['paras']['submodules']['encoder'])
         self.fc21 = nn.Linear(50, 20)
         self.fc22 = nn.Linear(50, 20)
@@ -37,5 +37,5 @@ class VAEFP(ModelBase):
 
     @staticmethod
     def build_module(config):
-        VAEFP.check_config(config)
-        return VAEFP()
+        VAEFPExplicit.check_config(config)
+        return VAEFPExplicit()

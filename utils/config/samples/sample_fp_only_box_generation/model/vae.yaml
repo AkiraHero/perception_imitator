@@ -1,4 +1,4 @@
-name: vae_fp
+name: vae_fp_explicit
 paras:
   latent_distribution: Gaussian
   submodules:
