@@ -1,0 +1,3 @@
+name: vae_fp_cloud_point
+paras:
+  latent_distribution: Gaussian
