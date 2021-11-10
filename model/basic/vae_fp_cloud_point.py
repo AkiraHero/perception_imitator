@@ -21,6 +21,7 @@ class VAEFPCloudPoint(ModelBase):
         self.fc5 = nn.Linear(100, 7)
 
     def forward(self, x):
+        x = x.permute(0, 2, 1)  # 调整通道可以进行conv1d卷积操作
         x = F.relu(self.bn1(self.conv1(x))) # 将每个点由4维升为64维
         x = F.relu(self.bn2(self.conv2(x)))  # 第二次mlp的第一层，64->128
         x = self.bn3(self.conv3(x))         # 第二次mlp的第一层，128->1024

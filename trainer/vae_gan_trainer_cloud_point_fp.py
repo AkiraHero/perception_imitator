@@ -54,8 +54,8 @@ class VAEGANTrainerCloudPointFP(TrainerBase):
                 self.model.discriminator.zero_grad()
 
                 # Get output of target_model
-                generator_input = cloud_point.permute(0, 2, 1) # 调整通道可以进行conv1d卷积操作
-
+                generator_input = cloud_point
+                
                 discriminator_input_real = gt_bbox
                 gt_fp_label = torch.full((cur_batch_size,),
                                                         real_label, dtype=torch.float, device=self.device)
@@ -96,13 +96,8 @@ class VAEGANTrainerCloudPointFP(TrainerBase):
 
                 ############################
                 # (2) Update G network: maximize log(D(G(z)))
-                ###########################
-                # netG.zero_grad()
-                # self.generator_optimizer.zero_grad()
+                ############################
                 self.model.generator.zero_grad()
-
-                # real_fake_label_fullfilled.fill_(real_label)  # fake labels are real for generator cost
-                # Since we just updated D, perform another forward pass of all-fake batch through D
                 output2 = self.model.discriminator(discriminator_input_fake).view(-1)
 
                 # Calculate G's loss based on this output
@@ -116,12 +111,10 @@ class VAEGANTrainerCloudPointFP(TrainerBase):
                 self.logger.log_data("err_G", errG)
                 self.logger.log_data("err_G1", errG1)
 
-
                 D_G_z2 = output.mean().item()
 
                 # Update G
                 self.generator_optimizer.step()
-
 
                 print(
                     f'Epoch: [{epoch + 1:0>{len(str(epoch))}}/{self.max_epoch}]',
@@ -131,19 +124,7 @@ class VAEGANTrainerCloudPointFP(TrainerBase):
                     f'D(x): {D_x:.4f}',
                     f'D(G(z)): [{D_G_z1:.4f}/{D_G_z2:.4f}]'
                 )
-                # pass
-                # # Save Losses for plotting later
-                # G_losses.append(errG.item())
-                # D_losses.append(errD.item())
-
-                # # Save D(X) and D(G(z)) for plotting later
-                # D_x_list.append(D_x)
-                # D_z_list.append(D_G_z2)
-
-                # Save the Best Model
-                # if errG < loss_tep1 and epoch > 10:
-                #     torch.save(netG.state_dict(), './results/VAE_Mnist2/model_errG.pt')
-                #     loss_tep1 = errG
+ 
             if epoch % 10 == 0:
                 torch.save(self.model.generator.state_dict(), 'D:/1Pjlab/ADModel_Pro/output/fp_gen_cloudpoint/' + str(epoch) + ".pt")
 
