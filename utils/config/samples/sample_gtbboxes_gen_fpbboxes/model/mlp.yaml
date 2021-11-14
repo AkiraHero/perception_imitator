@@ -1,0 +1,13 @@
+name: mlp
+paras:
+  input_size: 28
+  layer_act_func:
+  - relu
+  - relu
+  - relu
+  - sigmoid
+  layer_node_num:
+  - 1024
+  - 1024
+  - 512
+  - 1
