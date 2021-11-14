@@ -288,7 +288,7 @@ def euclidean_distance(k,h,pointIndex):
 def get_kitti_object_cloud_v2():
 
     save_object_cloud_path = r'F:/Kitti/data_object_velodyne/training/cloud_in_bbox'
-    data_root = "D:/1Pjlab/ModelSimulator/data"
+    data_root = "D:/1Pjlab/ADModel_Pro/data"
     db_file = os.path.join(data_root, "gt_dt_matching_res.pkl")
 
     # 读取所有检测框数据

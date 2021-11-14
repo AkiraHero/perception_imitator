@@ -22,7 +22,7 @@ def get_fp_explicit_dataset_pkl():
     fp_explicit_datas = []
 
     cloud_path = "F:/Kitti/data_object_velodyne/training/cloud_in_bbox"
-    data_root = "D:/1Pjlab/ModelSimulator/data"
+    data_root = "D:/1Pjlab/ADModel_Pro/data"
 
     db_file = os.path.join(data_root, "gt_dt_matching_res.pkl")
     print("Loading bbox data from pkl")
@@ -54,7 +54,7 @@ def get_fp_explicit_dataset_pkl():
     print(len(fp_explicit_datas))
 
     #存储fp bbox数据为pkl文件
-    fp_explicit_file = "D:/1Pjlab/ModelSimulator/data/tpfp_explicit_data.pkl"
+    fp_explicit_file = "D:/1Pjlab/ADModel_Pro/data/tpfp_explicit_data.pkl"
     with open(fp_explicit_file, "wb") as f:
         pickle.dump(fp_explicit_datas, f)
 

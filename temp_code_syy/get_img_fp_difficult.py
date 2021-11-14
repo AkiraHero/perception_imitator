@@ -38,7 +38,7 @@ def hard_num2class(num):
         clss = 3
     return clss
 
-with open("D:/1Pjlab/ModelSimulator/data/fp_difficult.pkl", 'rb') as f:
+with open("D:/1Pjlab/ADModel_Pro/data/fp_difficult.pkl", 'rb') as f:
     fp_difficult = pickle.load(f)
 print(fp_difficult.keys())
 print(fp_difficult['image'])
@@ -46,7 +46,7 @@ print(fp_difficult['dtbox_id'])
 print(fp_difficult['difficult'])
 print('-'*10)
 
-with open("D:/1Pjlab/ModelSimulator/data/gt_dt_matching_res.pkl", 'rb') as f:
+with open("D:/1Pjlab/ADModel_Pro/data/gt_dt_matching_res.pkl", 'rb') as f:
     gt_dt = pickle.load(f)
 
 gt_box = gt_dt['gt_annos'][1]['gt_boxes_lidar']
@@ -92,5 +92,5 @@ for img_id in range(7481):   # 图片序号
     img_fp_difficult = {'image': img_id, 'gtbox_input': input_gt_box, 'have_fp': have_fp, 'all_fp': num_all_fp, 'easy_fp': num_easy_fp, 'hard_fp': num_hard_fp}
     all_img_fp_difficult.append(img_fp_difficult)
 
-with open("D:/1Pjlab/ModelSimulator/data/img_fp_difficult.pkl", "wb") as f:
+with open("D:/1Pjlab/ADModel_Pro/data/img_fp_difficult.pkl", "wb") as f:
     pickle.dump(all_img_fp_difficult, f)

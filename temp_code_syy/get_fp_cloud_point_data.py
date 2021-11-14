@@ -19,7 +19,7 @@ def gt_str2num(label):
     return d[label]
 
 cloud_path = "F:/Kitti/data_object_velodyne/training/cloud_in_bbox"
-data_root = "D:/1Pjlab/ModelSimulator/data"
+data_root = "D:/1Pjlab/ADModel_Pro/data"
 
 db_file = os.path.join(data_root, "gt_dt_matching_res.pkl")
 print("Loading bbox data from pkl")
@@ -52,5 +52,5 @@ for one_dt_cloud in cloud_files:
 
 print(len(fp_cloud_ponits))
 
-with open("D:/1Pjlab/ModelSimulator/data/fp_cloud_point.pkl", "wb") as f:
+with open("D:/1Pjlab/ADModel_Pro/data/fp_cloud_point.pkl", "wb") as f:
     pickle.dump(fp_cloud_ponits, f)

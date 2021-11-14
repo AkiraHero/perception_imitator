@@ -1,7 +1,7 @@
 import os
 import pickle
 
-fp_class_path = "D:/1Pjlab/ModelSimulator/output/fp_diff"
+fp_class_path = "D:/1Pjlab/ADModel_Pro/output/fp_diff"
 cls_1_path = os.path.join(fp_class_path, 'fp_clss_1.pkl')
 cls_2_path = os.path.join(fp_class_path, 'fp_clss_2.pkl')
 
@@ -16,5 +16,5 @@ fp_diff = {'image': fp_clss_1['image'], 'dtbox_id': fp_clss_1['dtbox_id'], 'diff
 
 print(fp_diff)
 
-with open("D:/1Pjlab/ModelSimulator/data/fp_difficult.pkl", "wb") as f:
+with open("D:/1Pjlab/ADModel_Pro/data/fp_difficult.pkl", "wb") as f:
     pickle.dump(fp_diff, f)

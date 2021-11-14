@@ -83,7 +83,7 @@ def draw_point_cloud(ax, points, title, axes=[0, 1, 2], point_size=0.2, xlim3d=N
         ax.set_zlim3d(zlim3d)
 
 if __name__ == '__main__':
-    data_root = "D:/1Pjlab/ModelSimulator/data" 
+    data_root = "D:/1Pjlab/ADModel_Pro/data" 
     db_file = os.path.join(data_root, "gt_dt_matching_res.pkl")
 
     img_id = 12
@@ -97,7 +97,7 @@ if __name__ == '__main__':
             db = pickle.load(f)
         dt_annos = db['dt_annos']   # pvrcnn的检测结果
 
-        with open('D:/1Pjlab/ModelSimulator/data/fp_difficult.pkl', 'rb') as f:
+        with open('D:/1Pjlab/ADModel_Pro/data/fp_difficult.pkl', 'rb') as f:
             fp_difficult = pickle.load(f)
 
         # 创建画布并且绘制点云图

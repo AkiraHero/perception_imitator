@@ -3,7 +3,7 @@ import torch
 import os
 import numpy as np
 
-data_root = "D:/1Pjlab/ModelSimulator/data"
+data_root = "D:/1Pjlab/ADModel_Pro/data"
 db_file = os.path.join(data_root, "gt_dt_matching_res.pkl")
 fp_bbox_file = os.path.join(data_root, "fp_bbox_data.pkl")
 
