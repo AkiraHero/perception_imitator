@@ -29,7 +29,7 @@ class VAEGANTrainerGtbboxGenFpbbox(TrainerBase):
         self.data_loader = self.dataset.get_data_loader()
 
         # 初始化Optimizers和损失函数
-        criterion = nn.BCELoss()  # Initialize BCELoss function
+        criterion = nn.BCELoss(size_average=False, reduce=True)  # Initialize BCELoss function
         # 方便建立真值，Establish convention for real and fake labels during training
         real_label = 1.
         fake_label = 0.
@@ -104,14 +104,14 @@ class VAEGANTrainerGtbboxGenFpbbox(TrainerBase):
                 # Since we just updated D, perform another forward pass of all-fake batch through D
                 output2 = self.model.discriminator(discriminator_input_fake).view(-1)
 
-                # output = self.model.discriminator(discriminator_input_fake).view(-1)
                 # Calculate G's loss based on this output
                 errG1 = criterion(output2, gt_fp_box_label) / cur_batch_size  # 希望生成的假数据能让D判成1
 
                 KLD_element = mu.pow(2).add_(logvar.exp()).mul_(-1).add_(1).add_(logvar)
                 errG_KLD = torch.sum(KLD_element).mul_(-0.5)
 
-                errG = errG1.add_(errG_KLD)
+                # errG = errG1.add_(errG_KLD)
+                errG = errG1
                 errG.backward()
                 self.logger.log_data("err_G", errG)
                 self.logger.log_data("err_G1", errG1)

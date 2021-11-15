@@ -29,7 +29,7 @@ class VAEGANTrainerBoxOnlyFP(TrainerBase):
         self.data_loader = self.dataset.get_data_loader()
 
         # 初始化Optimizers和损失函数
-        criterion = nn.BCELoss()  # Initialize BCELoss function
+        criterion = nn.BCELoss(size_average=False, reduce=True)  # Initialize BCELoss function
         # 方便建立真值，Establish convention for real and fake labels during training
         real_label = 1.
         fake_label = 0.

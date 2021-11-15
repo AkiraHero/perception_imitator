@@ -8,4 +8,4 @@ paras:
   layer_node_num:
   - 512
   - 512
-  - 32
+  - 128
