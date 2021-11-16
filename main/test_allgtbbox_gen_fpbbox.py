@@ -18,7 +18,7 @@ def list_of_tensor_2_tensor(data):
 
 def change_data_form(data):
     for k, v in data.items():
-        if k in ['gt_bboxes', 'fp_bboxes']:
+        if k in ['gt_bboxes', 'fp_bboxes', 'difficult']:
             v = torch.stack(v, 0)
             v = v.transpose(0,1).to(torch.float32)
             data[k] = v
@@ -38,7 +38,7 @@ if __name__ == '__main__':
     # instantiating all modules by non-singleton factory
     model = ModelFactory.get_model(config.model_config)
 
-    paras = torch.load("D:/1Pjlab/ADModel_Pro/output/gtbbox_gen_fpbbox_model/540.pt")
+    paras = torch.load("D:/1Pjlab/ADModel_Pro/output/gtbbox_gen_fpbbox_model/660.pt")
     model.generator.load_model_paras(paras)
     model.set_eval()
     model.set_device("cuda:0")
@@ -47,6 +47,7 @@ if __name__ == '__main__':
 
     gt_fp_bbox = []
     gen_fp_bbox = []
+    gt_fp_difficult= []
 
     with torch.no_grad():
         for step, data in enumerate(data_loader):
@@ -55,6 +56,7 @@ if __name__ == '__main__':
             print('Step:', step)
             generate_input = data['gt_bboxes'].cuda()
             dt_box_fp = data['fp_bboxes'].cuda()
+            difficult = data['difficult'].cuda()
 
             gen_data,_,_ = model.generator(generate_input)
             dt_box_fp = dt_box_fp.view(dt_box_fp.shape[0], -1, 7)
@@ -62,6 +64,7 @@ if __name__ == '__main__':
 
             gt_fp_bbox.extend(dt_box_fp)
             gen_fp_bbox.extend(gen_data)
+            gt_fp_difficult.extend(difficult)
     
     gt_fp_bbox = list_of_tensor_2_tensor(gt_fp_bbox)
     gen_fp_bbox = list_of_tensor_2_tensor(gen_fp_bbox)
@@ -69,11 +72,14 @@ if __name__ == '__main__':
     print(gen_fp_bbox.shape)
 
     all_iou = []
-    for i in range(gen_fp_bbox.shape[0]):
+    # for i in range(gen_fp_bbox.shape[0]):
+    for i in range(0,10):
+        print(gen_fp_bbox[i], gt_fp_bbox[i])
         iou_3d = boxes_iou3d_cpu(gen_fp_bbox[i], gt_fp_bbox[i])
         all_iou.append(iou_3d)
 
     all_iou = list_of_tensor_2_tensor(all_iou)
     print("IoU_3D is:", all_iou)    # 目前高度的生成可能存在问题，导致3D检测框的IoU值为0，但是从bev视角看，是可以生成有重合部分的FP框的
+    print("difficult:", gt_fp_difficult[0:10])
 
     pass

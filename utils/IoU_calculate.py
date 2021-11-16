@@ -180,6 +180,7 @@ def boxes_iou3d_cpu(boxes_a, boxes_b):
 
     # 3d iou
     overlaps_3d = overlaps_bev * overlaps_h
+    # overlaps_3d = overlaps_bev
 
     vol_a = (boxes_a[:, 3] * boxes_a[:, 4] * boxes_a[:, 5]).view(-1, 1)
     vol_b = (boxes_b[:, 3] * boxes_b[:, 4] * boxes_b[:, 5]).view(1, -1)

@@ -29,6 +29,9 @@ def get_gtbbox_gen_fpbbox():
     print("3d list长度：", len(db['3d']))   # key"3d"下存储了激光点云的检测框匹配结果和检测框数据
     gt_annos = db['gt_annos']   # 真值
     dt_annos = db['dt_annos']   # pvrcnn的检测结果
+    # 读取检测框难度数据
+    with open('D:/1Pjlab/ADModel_Pro/data/fp_difficult.pkl', 'rb') as f:
+        diff = pickle.load(f)
 
     dataset = []
     
@@ -40,6 +43,7 @@ def get_gtbbox_gen_fpbbox():
         num_dt = len(dt_annos[img_id]['name'])   # 该帧的检测个数
         gt_bboxes = []
         fp_bboxes = []
+        difficult = []
 
         # 得到Data
         gt_bbox = gt_annos[img_id]['gt_boxes_lidar']
@@ -52,12 +56,22 @@ def get_gtbbox_gen_fpbbox():
             if dt_i not in db['3d'][img_id]:
                 fp_box_lidar = dt_annos[img_id]['boxes_lidar'][dt_i]
                 fp_bboxes.extend(fp_box_lidar.tolist())
+
+                dtbox_id_index = [i for i,v in enumerate(diff['image']) if v==img_id]
+                dt_i_fp_index = [i + dtbox_id_index[0]  for i,v in enumerate(diff['dtbox_id'][dtbox_id_index]) if v==dt_i]
+                if dt_i_fp_index == []: # 部分difficult中的框因为点数太少而被筛选掉了
+                    continue
+        
+                fp_difficult = diff['difficult'][dt_i_fp_index]
+                difficult.append(fp_difficult.tolist())
             else:
                 pass
 
+        difficult = np.array(difficult).reshape(-1).tolist()
+        difficult = difficult[:4] + [0,]*(4-len(difficult))
         fp_bboxes = fp_bboxes[:28] + [0,]*(28-len(fp_bboxes)) # 将每幅图像的FPbbox输出固定为4个，即最后为4*7=28维
     
-        gtbbox_gen_fpbbox = {'gt_bboxes': gt_bboxes, 'fp_bboxes': fp_bboxes}
+        gtbbox_gen_fpbbox = {'gt_bboxes': gt_bboxes, 'fp_bboxes': fp_bboxes, 'difficult': difficult}
         dataset.append(gtbbox_gen_fpbbox)
 
     with open("D:/1Pjlab/ADModel_Pro/data/gtbbox_gen_fpbbox.pkl", "wb") as f:
