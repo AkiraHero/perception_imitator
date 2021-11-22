@@ -23,10 +23,10 @@ class FpBoxOnlyDataset(DatasetBase):
         self._num_workers = config['paras']['num_workers']
         self._shuffle = config['paras']['shuffle']
         
-        fpbox_file = os.path.join(self._data_root, "fp_bbox_data.pkl")
+        fpbox_file = os.path.join(self._data_root, "fp_bbox_data_hard.pkl")
         with open(fpbox_file, 'rb') as f:
             self._fpbox = pickle.load(f)
-        self.item_list = torch.Tensor(self._fpbox['fp_bbox'])
+        self.item_list = torch.Tensor(self._fpbox['fp_bbox_hard'])
 
     def get_data_loader(self, distributed=False):
         return DataLoader(

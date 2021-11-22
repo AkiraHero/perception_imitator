@@ -24,7 +24,7 @@ class GtbboxGenFpbbox(DatasetBase):
         self._num_workers = config['paras']['num_workers']
         self._shuffle = config['paras']['shuffle']
         
-        allgt2fp_file = os.path.join(self._data_root, "gtbbox_gen_fpbbox.pkl")
+        allgt2fp_file = os.path.join(self._data_root, "gtbbox_gen_1fpbbox.pkl")
         with open(allgt2fp_file, 'rb') as f:
             self._allgt2fp = pickle.load(f)
 
@@ -52,11 +52,10 @@ class GtbboxGenFpbbox(DatasetBase):
     @staticmethod
     def load_data2gpu(data):
         for k, v in data.items():
-            if k in ['gt_bboxes', 'fp_bboxes', 'difficult']:
+            if k in ['gt_bboxes', 'fp_bboxes_all', 'fp_bboxes_easy', 'fp_bboxes_hard', 'difficult']:
                 v = torch.stack(v, 0)
                 v = v.transpose(0,1).to(torch.float32)
                 v = v.cuda()
                 data[k] = v
-            else:
-                v = v.cuda()
-                data[k] = v
+            else: 
+                pass

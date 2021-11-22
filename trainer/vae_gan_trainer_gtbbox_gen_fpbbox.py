@@ -14,6 +14,11 @@ class VAEGANTrainerGtbboxGenFpbbox(TrainerBase):
         self.data_loader = None
         pass
 
+    def mask(self, fp_hard):
+        nonZeroRows = torch.abs(fp_hard).sum(dim=1) > 0
+
+        return nonZeroRows
+
     def set_optimizer(self, optimizer_config):
         optimizer_ref = torch.optim.__dict__[self.optimizer_config[0]['type']]
         self.generator_optimizer = optimizer_ref(self.model.generator.parameters(), **optimizer_config[0]['paras'])
@@ -29,7 +34,7 @@ class VAEGANTrainerGtbboxGenFpbbox(TrainerBase):
         self.data_loader = self.dataset.get_data_loader()
 
         # 初始化Optimizers和损失函数
-        criterion = nn.BCELoss(size_average=False, reduce=True)  # Initialize BCELoss function
+        criterion = nn.BCELoss(size_average=False, reduce=False)  # Initialize BCELoss function
         # 方便建立真值，Establish convention for real and fake labels during training
         real_label = 1.
         fake_label = 0.
@@ -46,8 +51,10 @@ class VAEGANTrainerGtbboxGenFpbbox(TrainerBase):
                 self.dataset.load_data2gpu(data)
 
                 gt_bboxes = data['gt_bboxes']
-                fp_bboxes = data['fp_bboxes']
+                fp_bboxes = data['fp_bboxes_hard']
                 cur_batch_size = gt_bboxes.shape[0]
+
+                self.mask(fp_bboxes)
 
                 # self.discriminator_optimizer.zero_grad()
                 self.model.discriminator.zero_grad()
@@ -62,9 +69,10 @@ class VAEGANTrainerGtbboxGenFpbbox(TrainerBase):
                 # Forward pass real batch through discriminator
                 output = self.model.discriminator(discriminator_input_real).view(-1)
                 # Calculate loss on all-real batch
-                errD_real = criterion(output, gt_fp_box_label) / cur_batch_size
+                errD_real = criterion(output, gt_fp_box_label).mul(self.mask(fp_bboxes)).sum() / cur_batch_size
+
                 # Calculate gradients for D in backward pass
-                errD_real.backward()
+                # errD_real.backward()
                 D_x = output.mean().item()
 
                 # Train with all-fake batch
@@ -80,14 +88,15 @@ class VAEGANTrainerGtbboxGenFpbbox(TrainerBase):
                 output2 = self.model.discriminator(discriminator_input_fake.detach()).view(-1)
 
                 # Calculate D's loss on the all-fake batch
-                errD_fake = criterion(output2, generated_label) / cur_batch_size
+                errD_fake = criterion(output2, generated_label).mul(self.mask(fp_bboxes)).sum() / cur_batch_size
                 # Calculate the gradients for this batch
-                errD_fake.backward()
+                # errD_fake.backward()
                 D_G_z1 = output.mean().item()
                 # Add the gradients from the all-real and all-fake batches
                 errD = errD_real + errD_fake  # 希望对真实数据接近label1，对于假数据接近label0
+
                 # # Update D
-                # errD.backward()
+                errD.backward()
                 self.logger.log_data("errD", errD)
                 self.logger.log_data("err_real", errD_real)
                 self.logger.log_data("err_fake", errD_fake)
@@ -105,13 +114,13 @@ class VAEGANTrainerGtbboxGenFpbbox(TrainerBase):
                 output2 = self.model.discriminator(discriminator_input_fake).view(-1)
 
                 # Calculate G's loss based on this output
-                errG1 = criterion(output2, gt_fp_box_label) / cur_batch_size  # 希望生成的假数据能让D判成1
+                errG1 = criterion(output2, gt_fp_box_label).mul(self.mask(fp_bboxes)).sum() / cur_batch_size  # 希望生成的假数据能让D判成1
 
                 KLD_element = mu.pow(2).add_(logvar.exp()).mul_(-1).add_(1).add_(logvar)
                 errG_KLD = torch.sum(KLD_element).mul_(-0.5)
 
-                # errG = errG1.add_(errG_KLD)
-                errG = errG1
+                errG = errG1.add_(errG_KLD)
+                # errG = errG1
                 errG.backward()
                 self.logger.log_data("err_G", errG)
                 self.logger.log_data("err_G1", errG1)
@@ -129,9 +138,9 @@ class VAEGANTrainerGtbboxGenFpbbox(TrainerBase):
                     f'D(x): {D_x:.4f}',
                     f'D(G(z)): [{D_G_z1:.4f}/{D_G_z2:.4f}]'
                 )
-
+            
             if epoch % 10 == 0:
-                torch.save(self.model.generator.state_dict(), 'D:/1Pjlab/ADModel_Pro/output/gtbbox_gen_fpbbox_model/' + str(epoch) + ".pt")
+                torch.save(self.model.generator.state_dict(), 'D:/1Pjlab/ADModel_Pro/output/gtbbox_gen_fpbbox_hard_model/' + str(epoch) + ".pt")
 
 
 

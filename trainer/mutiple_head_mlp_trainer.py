@@ -53,7 +53,7 @@ class MultipleHeadMLPTrainer(TrainerBase):
             if not self.distributed or self.rank == 0:
                 self.logger.log_model_params(self.model)
             if epoch % 10 == 0:
-                torch.save(self.model.state_dict(), 'D:/1Pjlab/ModelSimulator/output/fp_difficult/' + str(epoch) + ".pt")
+                torch.save(self.model.state_dict(), 'D:/1Pjlab/ADModel_Pro/output/fp_difficult/' + str(epoch) + ".pt")
 
 
 

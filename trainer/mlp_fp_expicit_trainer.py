@@ -60,5 +60,5 @@ class FpExplicitTrainer(TrainerBase):
                 self.logger.log_data(loss.item(), True)
 
             if epoch % 10 == 0:
-                torch.save(self.model.state_dict(), 'D:/1Pjlab/ModelSimulator/output/fp_explicit_model/1024-2048-2048-2/' + str(epoch) + ".pt")
+                torch.save(self.model.state_dict(), 'D:/1Pjlab/ADModel_Pro/output/fp_explicit_model/1024-2048-2048-2/' + str(epoch) + ".pt")
 

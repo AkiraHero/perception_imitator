@@ -147,7 +147,7 @@ class VAEGANTrainerBoxOnlyFP(TrainerBase):
                 #     torch.save(netG.state_dict(), './results/VAE_Mnist2/model_errG.pt')
                 #     loss_tep1 = errG
             if epoch % 10 == 0:
-                torch.save(self.model.generator.state_dict(), 'D:/1Pjlab/ModelSimulator/output/fp_gen_model/' + str(epoch) + ".pt")
+                torch.save(self.model.generator.state_dict(), 'D:/1Pjlab/ADModel_Pro/output/fp_gen_box_hard/' + str(epoch) + ".pt")
 
 
 

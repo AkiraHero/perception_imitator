@@ -18,7 +18,7 @@ def list_of_tensor_2_tensor(data):
 
 def change_data_form(data):
     for k, v in data.items():
-        if k in ['gt_bboxes', 'fp_bboxes', 'difficult']:
+        if k in ['gt_bboxes', 'fp_bboxes_all', 'fp_bboxes_easy', 'fp_bboxes_hard', 'difficult']:
             v = torch.stack(v, 0)
             v = v.transpose(0,1).to(torch.float32)
             data[k] = v
@@ -38,7 +38,7 @@ if __name__ == '__main__':
     # instantiating all modules by non-singleton factory
     model = ModelFactory.get_model(config.model_config)
 
-    paras = torch.load("D:/1Pjlab/ADModel_Pro/output/gtbbox_gen_fpbbox_model/660.pt")
+    paras = torch.load("D:/1Pjlab/ADModel_Pro/output/gtbbox_gen_fpbbox_hard_model/420.pt")
     model.generator.load_model_paras(paras)
     model.set_eval()
     model.set_device("cuda:0")
@@ -55,7 +55,7 @@ if __name__ == '__main__':
 
             print('Step:', step)
             generate_input = data['gt_bboxes'].cuda()
-            dt_box_fp = data['fp_bboxes'].cuda()
+            dt_box_fp = data['fp_bboxes_hard'].cuda()
             difficult = data['difficult'].cuda()
 
             gen_data,_,_ = model.generator(generate_input)
@@ -69,11 +69,13 @@ if __name__ == '__main__':
     gt_fp_bbox = list_of_tensor_2_tensor(gt_fp_bbox)
     gen_fp_bbox = list_of_tensor_2_tensor(gen_fp_bbox)
     print(gt_fp_bbox.shape)
+    print(gt_fp_bbox)
     print(gen_fp_bbox.shape)
+    print(gen_fp_bbox)
 
     all_iou = []
     # for i in range(gen_fp_bbox.shape[0]):
-    for i in range(0,10):
+    for i in range(0,20):
         print(gen_fp_bbox[i], gt_fp_bbox[i])
         iou_3d = boxes_iou3d_cpu(gen_fp_bbox[i], gt_fp_bbox[i])
         all_iou.append(iou_3d)
