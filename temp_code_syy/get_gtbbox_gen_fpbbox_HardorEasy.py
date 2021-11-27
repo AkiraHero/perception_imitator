@@ -51,7 +51,7 @@ def get_gtbbox_gen_fpbbox():
         gt_bbox = gt_annos[img_id]['gt_boxes_lidar']
         gt_class = np.array([label_str2num(i) for i in gt_annos[img_id]['name'][gt_annos[img_id]['name'] != 'DontCare']])[:, np.newaxis]
         gt_bboxes = np.concatenate((gt_bbox, gt_class), axis=1).flatten().tolist()
-        gt_bboxes = gt_bboxes[:48] + [0,]*(48-len(gt_bboxes))
+        gt_bboxes = gt_bboxes[:200] + [0,]*(200-len(gt_bboxes))  # kitti一张图片的gtbbox上限为25个，25*8=200
 
         # 得到Label
         for dt_i in range(num_dt): # 处理第dt_i个检测框数据
@@ -75,14 +75,14 @@ def get_gtbbox_gen_fpbbox():
                 pass
 
         difficult = np.array(difficult).reshape(-1).tolist()
-        difficult = difficult[:4] + [0,]*(4-len(difficult))
-        fp_bboxes_all = fp_bboxes_all[:28] + [0,]*(28-len(fp_bboxes_all)) # 将每幅图像的FPbbox输出固定为4个，即最后为4*7=28维
-        fp_bboxes_easy = fp_bboxes_easy[:21] + [0,]*(21-len(fp_bboxes_easy)) # 将每幅图像的easyFPbbox输出固定为3个，即最后为3*7=21维
-        fp_bboxes_hard = fp_bboxes_hard[:7] + [0,]*(7-len(fp_bboxes_hard)) # 将每幅图像的hardFPbbox输出固定为1个，即最后为1*7=7维(因为主要研究的是hardFP，因此在数量上进行一定的放宽)
+        difficult = difficult[:20] + [0,]*(20-len(difficult))
+        fp_bboxes_all = fp_bboxes_all[:140] + [0,]*(140-len(fp_bboxes_all)) # 将每幅图像的FPbbox输出固定为20个，即最后为20*7=140维，在训练时补零项不参与梯度回传
+        fp_bboxes_easy = fp_bboxes_easy[:140] + [0,]*(140-len(fp_bboxes_easy)) # 将每幅图像的easyFPbbox输出固定为20个，即最后为20*7=140维
+        fp_bboxes_hard = fp_bboxes_hard[:70] + [0,]*(70-len(fp_bboxes_hard)) # 将每幅图像的hardFPbbox输出固定为10个，即最后为10*7=70维
 
         gtbbox_gen_fpbbox = {'gt_bboxes': gt_bboxes, 'fp_bboxes_all': fp_bboxes_all, 'fp_bboxes_easy': fp_bboxes_easy, 'fp_bboxes_hard': fp_bboxes_hard, 'difficult': difficult}
         dataset.append(gtbbox_gen_fpbbox)
-    with open("D:/1Pjlab/ADModel_Pro/data/gtbbox_gen_1fpbbox.pkl", "wb") as f:
+    with open("D:/1Pjlab/ADModel_Pro/data/gtbbox_gen_20fpbbox.pkl", "wb") as f:
         pickle.dump(dataset, f)
 
 if __name__ == '__main__':

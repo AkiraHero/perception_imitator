@@ -5,3 +5,5 @@
 * fp_difficult.pkl存储了每张图像中每个FP的难易度
 * img_fp_difficult.pkl存储了每张图像是否拥有FP，拥有几个FP，FP中easy和hard的个数
 * fp_cloud_point.pkl存储FP对应的点云数据及BBox7个参数
+* gtbbox_gen_fpbbox.pkl存储输入为整个场景的gtbbox，输出每个场景的FPbbox固定为4个
+* gtbbox_gen_4fpbbox.pkl存储输入为整个场景的gtbbox，输出每个场景的FPbbox固定为4个，输出easyFPbbox固定为3个，hardFPbbox固定为1个

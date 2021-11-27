@@ -9,11 +9,11 @@ class VAEAllFPExplicit(ModelBase):
     def __init__(self, config):
         super(VAEAllFPExplicit, self).__init__()
         self.encoder = ModelFactory.ModelFactory.get_model(config['paras']['submodules']['encoder'])
-        self.fc21 = nn.Linear(128, 20)
-        self.fc22 = nn.Linear(128, 20)
-        self.fc3 = nn.Linear(20, 512)
-        self.fc4 = nn.Linear(512, 256)
-        self.fc5 = nn.Linear(256, 7)
+        self.fc21 = nn.Linear(1024, 128)
+        self.fc22 = nn.Linear(1024, 128)
+        self.fc3 = nn.Linear(128, 1024)
+        self.fc4 = nn.Linear(1024, 512)
+        self.fc5 = nn.Linear(512, 140)
 
     def forward(self, x):
         x = self.encoder(x)
