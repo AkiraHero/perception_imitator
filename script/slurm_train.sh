@@ -10,7 +10,7 @@ out_green "Set PYTHONPATH=${PYTHONPATH}"
 out_green "Screen log will be redirected to file: ${LOG_NAME}"
 
 JOB_NAME=hello_world
-GPUS_PER_NODE=2
+GPUS_PER_NODE=1
 GPUS=${GPUS_PER_NODE}
 
 while true
@@ -29,7 +29,7 @@ srun -p ${PARTITION} \
     --ntasks=${GPUS} \
     --ntasks-per-node=${GPUS_PER_NODE} \
     --kill-on-bad-exit=1 \
-    --partition=shlab_ap_ll \
+    --partition=shlab_adg \
     python3 ../main/train.py\
       --cfg_dir ../utils/config/samples/sample_pvrcnn\
       --screen_log ${LOG_NAME}\
