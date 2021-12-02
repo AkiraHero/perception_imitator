@@ -92,7 +92,7 @@ if __name__ == '__main__':
         lidar_path = r'F:/Kitti/data_object_velodyne/training/velodyne/%06d.bin' % img_id  ## Path ## need to be changed
         point_cloud = np.fromfile(lidar_path, dtype=np.float32).reshape(-1, 4)
 
-            # 读取所有检测框数据
+        # 读取所有检测框数据
         with open(db_file, 'rb') as f:
             db = pickle.load(f)
         dt_annos = db['dt_annos']   # pvrcnn的检测结果
@@ -108,7 +108,6 @@ if __name__ == '__main__':
         ax.view_init(60,130)
         # 在画板中画出点云显示数据，point_cloud[::x]x值越大，显示的点越稀疏
         draw_point_cloud(ax, point_cloud[::8], "velo_points")
-        
 
         # 进行fp_bbox的画制
         dtbox_id_index = [i for i,v in enumerate(fp_difficult['image']) if v==img_id]

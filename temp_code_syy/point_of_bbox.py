@@ -285,6 +285,64 @@ def euclidean_distance(k,h,pointIndex):
     theDistance=math.fabs(h+k*(x-0)-y)/(math.sqrt(k*k+1))
     return theDistance
 
+# 获得img_id图像中所有gtbbxes中的点云
+def get_cloud_in_gtbbox(img_id, gt_annos):  
+    lidar_path = r'F:/Kitti/data_object_velodyne/training/velodyne/%06d.bin' % img_id  ## Path ## need to be changed
+    calib_path = r'F:/Kitti/data_object_velodyne/training/calib/%06d.txt' % img_id
+    calibs = Calibration(calib_path)
+
+    point_clouds_in_gtbbox = []
+    num_dt = len(gt_annos[img_id]['name'])   # 该帧的检测个数
+
+    # 提取点云数据
+    points = np.fromfile(lidar_path, dtype=np.float32).reshape(-1, 4)  # .astype(np.float16)
+    # plot_cloud_dev(points)
+
+    for gt_i in range(num_dt): # 处理第gt_i个真值框数据
+        if gt_annos[img_id]['name'][gt_i] != 'DontCare':
+            w_dis_all = []
+            l_dis_all = []
+            box_lidar = gt_annos[img_id]['gt_boxes_lidar'][gt_i]   # 数据结构为"x,y,z,l,w,h"
+            
+            # 高长宽
+            x = box_lidar[0]
+            y = box_lidar[1]
+            z = box_lidar[2]
+            l = box_lidar[3]
+            w = box_lidar[4]
+            h = box_lidar[5] 
+            theta = box_lidar[6] 
+
+            # 初步筛选，为增加检测速度
+            pass_size = 0.5*math.sqrt(l**2 + w**2)
+            x_filt = np.logical_and(
+                (points[:,0]>x-pass_size), (points[:,0]<x+pass_size))
+            y_filt = np.logical_and(
+                (points[:,1]>y-pass_size), (points[:,1]<y+pass_size))
+            filt_1 = np.logical_and(x_filt, y_filt)
+            temp_object_cloud = points[filt_1, :]
+
+
+            # 精确筛选，过滤该检测框范围外的激光点，使用xoy平面点到直线距离计算
+            for i in range(temp_object_cloud.shape[0]):
+                w_dis = euclidean_distance(np.tan(theta), y - np.tan(theta)*x, [temp_object_cloud[i,0], temp_object_cloud[i,1]])
+                w_dis_all.append(w_dis)
+                l_dis = euclidean_distance(-1/np.tan(theta), y + 1/np.tan(theta)*x, [temp_object_cloud[i,0], temp_object_cloud[i,1]])  
+                l_dis_all.append(l_dis)   
+
+            xy_filt2 = np.logical_and(
+                (w_dis_all<w/2), (l_dis_all<l/2))
+            z_filt = np.logical_and(
+                (temp_object_cloud[:,2]>(z-h/2)), (temp_object_cloud[:,2]<(z+h/2)))
+            filt_2 = np.logical_and(xy_filt2, z_filt)  # 必须同时成立
+
+            object_cloud = temp_object_cloud[filt_2, :]  # 过滤
+            point_clouds_in_gtbbox.append(object_cloud)
+
+    return (point_clouds_in_gtbbox)
+
+
+
 def get_kitti_object_cloud_v2():
 
     save_object_cloud_path = r'F:/Kitti/data_object_velodyne/training/cloud_in_bbox'

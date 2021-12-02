@@ -1,6 +1,6 @@
 '''
 Data：每张图像描述场景的所有gt的bbox
-Label：每张图像内的Hard或者Easy FPbbox
+Label：每张图像内的Hard或者Easy FPbbox(2d)
 
 '''
 
@@ -30,7 +30,7 @@ def get_gtbbox_gen_fpbbox():
     gt_annos = db['gt_annos']   # 真值
     dt_annos = db['dt_annos']   # pvrcnn的检测结果
     # 读取检测框难度数据
-    with open('D:/1Pjlab/ADModel_Pro/data/fp_difficult.pkl', 'rb') as f:
+    with open(diff_file, 'rb') as f:
         diff = pickle.load(f)
 
     dataset = []
@@ -89,5 +89,6 @@ def get_gtbbox_gen_fpbbox():
 if __name__ == '__main__':
     data_root = "D:/1Pjlab/ADModel_Pro/data"
     db_file = os.path.join(data_root, "gt_dt_matching_res.pkl")
+    diff_file = os.path.join(data_root, "fp_difficult.pkl")
 
     get_gtbbox_gen_fpbbox()
