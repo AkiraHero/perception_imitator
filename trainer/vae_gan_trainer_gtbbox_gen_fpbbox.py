@@ -4,6 +4,8 @@ import torch
 import numpy as np
 from torchvision import transforms
 
+from utils.gradnorm import normalize_gradient 
+
 class VAEGANTrainerGtbboxGenFpbbox(TrainerBase):
     def __init__(self, config):
         super(VAEGANTrainerGtbboxGenFpbbox, self).__init__()
@@ -78,7 +80,7 @@ class VAEGANTrainerGtbboxGenFpbbox(TrainerBase):
                                                         real_label, dtype=torch.float, device=self.device)                                  
 
                 # Forward pass real batch through discriminator
-                output = self.model.discriminator(discriminator_input_real).view(-1)
+                output = normalize_gradient(self.model.discriminator, discriminator_input_real).view(-1)
 
                 # Calculate loss on all-real batch
                 errD_real = criterion(output, gt_fp_box_label).mul(self.mask(fp_bboxes)[0]).sum() / self.mask(fp_bboxes)[1]
@@ -101,7 +103,7 @@ class VAEGANTrainerGtbboxGenFpbbox(TrainerBase):
                                                         fake_label, dtype=torch.float, device=self.device)
 
                 # # Classify all fake batch with D
-                output2 = self.model.discriminator(discriminator_input_fake.detach()).view(-1)
+                output2 = normalize_gradient(self.model.discriminator, discriminator_input_fake.detach()).view(-1)
 
                 # Calculate D's loss on the all-fake batch
                 errD_fake = criterion(output2, generated_label).sum() / discriminator_input_fake.shape[0]
@@ -128,7 +130,7 @@ class VAEGANTrainerGtbboxGenFpbbox(TrainerBase):
 
                 # real_fake_label_fullfilled.fill_(real_label)  # fake labels are real for generator cost
                 # Since we just updated D, perform another forward pass of all-fake batch through D
-                output2 = self.model.discriminator(discriminator_input_fake).view(-1)
+                output2 = normalize_gradient(self.model.discriminator, discriminator_input_fake).view(-1)
 
                 # Calculate G's loss based on this output
                 errG1 = criterion(output2, gt_fp_box_label).sum() / discriminator_input_fake.shape[0]  # 希望生成的假数据能让D判成1
