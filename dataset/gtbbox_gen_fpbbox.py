@@ -24,7 +24,7 @@ class GtbboxGenFpbbox(DatasetBase):
         self._num_workers = config['paras']['num_workers']
         self._shuffle = config['paras']['shuffle']
         
-        allgt2fp_file = os.path.join(self._data_root, "gtbbox_gen_20fpbbox.pkl")
+        allgt2fp_file = os.path.join(self._data_root, "gtbbox_gen_20fpbbox_add_density.pkl")
         with open(allgt2fp_file, 'rb') as f:
             self._allgt2fp = pickle.load(f)
 

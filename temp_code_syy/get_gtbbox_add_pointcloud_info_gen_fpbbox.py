@@ -83,6 +83,7 @@ def get_gtbbox_gen_fpbbox():
         cloud_in_gtbbox = get_cloud_in_gtbbox(img_id, gt_annos)    # 读取GT框内点云数据
         num_dt = len(dt_annos[img_id]['name'])   # 该帧的检测个数
         gt_bboxes = []
+        tp_bboxes = []
         fp_bboxes_all = []
         fp_bboxes_easy = []
         fp_bboxes_hard = []
@@ -95,9 +96,9 @@ def get_gtbbox_gen_fpbbox():
         gt_bboxes = np.concatenate((gt_bbox, gt_class, density), axis=1).flatten().tolist()
         gt_bboxes = gt_bboxes[:350] + [0,]*(350-len(gt_bboxes))  # kitti一张图片的gtbbox上限为25个，25*14=350
 
-        # 得到Label
+        # 得到TP & FPLabel
         for dt_i in range(num_dt): # 处理第dt_i个检测框数据
-            if dt_i not in db['3d'][img_id]:
+            if dt_i not in db['3d'][img_id]:    # FP
                 fp_box_lidar = dt_annos[img_id]['boxes_lidar'][dt_i]
                 fp_bboxes_all.extend(fp_box_lidar.tolist())
 
@@ -113,16 +114,16 @@ def get_gtbbox_gen_fpbbox():
                 else:
                     fp_bboxes_hard.extend(fp_box_lidar.tolist())
                         
-            else:
-                pass
-
+            else:   # TP
+                tp_box_lidar = dt_annos[img_id]['boxes_lidar'][dt_i]
+                tp_bboxes.extend(tp_box_lidar.tolist())
         difficult = np.array(difficult).reshape(-1).tolist()
         difficult = difficult[:20] + [0,]*(20-len(difficult))
+        tp_bboxes = tp_bboxes[:140] + [0,]*(140-len(tp_bboxes)) # 将每幅图像的TPbbox输出固定为20个
         fp_bboxes_all = fp_bboxes_all[:140] + [0,]*(140-len(fp_bboxes_all)) # 将每幅图像的FPbbox输出固定为20个，即最后为20*7=140维，在训练时补零项不参与梯度回传
         fp_bboxes_easy = fp_bboxes_easy[:140] + [0,]*(140-len(fp_bboxes_easy)) # 将每幅图像的easyFPbbox输出固定为20个，即最后为20*7=140维
         fp_bboxes_hard = fp_bboxes_hard[:70] + [0,]*(70-len(fp_bboxes_hard)) # 将每幅图像的hardFPbbox输出固定为10个，即最后为10*7=70维
-
-        gtbbox_gen_fpbbox = {'gt_bboxes': gt_bboxes, 'fp_bboxes_all': fp_bboxes_all, 'fp_bboxes_easy': fp_bboxes_easy, 'fp_bboxes_hard': fp_bboxes_hard, 'difficult': difficult}
+        gtbbox_gen_fpbbox = {'gt_bboxes': gt_bboxes, 'tp_bboxes': tp_bboxes, 'fp_bboxes_all': fp_bboxes_all, 'fp_bboxes_easy': fp_bboxes_easy, 'fp_bboxes_hard': fp_bboxes_hard, 'difficult': difficult}
         dataset.append(gtbbox_gen_fpbbox)
     with open("D:/1Pjlab/ADModel_Pro/data/gtbbox_gen_20fpbbox_add_density.pkl", "wb") as f:
         pickle.dump(dataset, f)

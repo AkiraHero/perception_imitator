@@ -9,4 +9,4 @@
 * **gtbbox_gen_4fpbbox.pkl**存储输入为整个场景的gtbbox，输出每个场景的FPbbox固定为4个，输出easyFPbbox固定为3个，hardFPbbox固定为1个
 * **gtbbox_gen_20fpbbox.pkl**存储输入为整个场景的gtbbox并补零扩展至25个，输出每个场景的FPbbox固定为20个，输出easyFPbbox固定为20个，hardFPbbox固定为10个
 * **gtbbox_gen_20fpbbox_2d.pkl**将数据维度将至2D的gtbbox_gen_20fpbbox.pkl，机输出的FPbbox只有(x,y,l,w,rot)
-* **gtbbox_gen_20fpbbox_add_density.pkl**将输入为整个场景的gtbbox并加上框内的点云在每个面上的密度，其余同gtbbox_gen_20fpbbox.pkl
+* **gtbbox_gen_20fpbbox_add_density.pkl**将输入为整个场景的gtbbox并加上框内的点云在每个面上的密度，输出增加了将tp框参数扩展至20*7=140维度;其余同gtbbox_gen_20fpbbox.pkl

@@ -73,8 +73,8 @@ class VAEGANTrainerGtbboxGenFpbbox(TrainerBase):
 
                 # Get output of target_model
                 generator_input = gt_bboxes # bs*200
-                discriminator_input_real = self.get_cat_dis_input(generator_input, fp_bboxes)   # bs*20 * (200+7)
-                discriminator_input_real = discriminator_input_real.reshape(-1, discriminator_input_real.shape[-1]) # (bs*20) * (200+7)
+                discriminator_input_real = self.get_cat_dis_input(generator_input, fp_bboxes)   # bs*20 * (350+7)
+                discriminator_input_real = discriminator_input_real.reshape(-1, discriminator_input_real.shape[-1]) # (bs*20) * (350+7)
 
                 gt_fp_box_label = torch.full((discriminator_input_real.shape[0],),
                                                         real_label, dtype=torch.float, device=self.device)                                  
