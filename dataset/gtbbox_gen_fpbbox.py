@@ -52,7 +52,7 @@ class GtbboxGenFpbbox(DatasetBase):
     @staticmethod
     def load_data2gpu(data):
         for k, v in data.items():
-            if k in ['gt_bboxes', 'fp_bboxes_all', 'fp_bboxes_easy', 'fp_bboxes_hard', 'difficult']:
+            if k in ['gt_bboxes', 'tp_bboxes', 'fp_bboxes_all', 'fp_bboxes_easy', 'fp_bboxes_hard', 'difficult']:
                 v = torch.stack(v, 0)
                 v = v.transpose(0,1).to(torch.float32)
                 v = v.cuda()

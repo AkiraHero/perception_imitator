@@ -23,7 +23,7 @@ def list_of_tensor_2_tensor(data):
 
 def change_data_form(data):
     for k, v in data.items():
-        if k in ['gt_bboxes', 'fp_bboxes_all', 'fp_bboxes_easy', 'fp_bboxes_hard', 'difficult']:
+        if k in ['gt_bboxes', 'tp_bboxes', 'fp_bboxes_all', 'fp_bboxes_easy', 'fp_bboxes_hard', 'difficult']:
             v = torch.stack(v, 0)
             v = v.transpose(0,1).to(torch.float32)
             data[k] = v
@@ -42,7 +42,7 @@ def plot_all_fp_bboxes(img_id, gt_fp_bboxes, gen_fp_bboxes):
     # 改变绘制图像的视角，即相机的位置，elev为Z轴角度，azim为(x,y)角度
     ax.view_init(60,130)
     # 在画板中画出点云显示数据，point_cloud[::x]x值越大，显示的点越稀疏
-    draw_point_cloud(ax, point_cloud[::2], "velo_points")
+    # draw_point_cloud(ax, point_cloud[::2], "velo_points")
 
     for _, corners_3d_lidar_box in enumerate(gt_fp_bboxes):
         if torch.abs(corners_3d_lidar_box).sum(dim = 0) > 0: 
@@ -80,6 +80,7 @@ if __name__ == '__main__':
     dataset = DatasetFactory.get_dataset(config.dataset_config)
     data_loader = dataset.get_data_loader()
 
+    gen_input = []
     gt_fp_bbox = []
     gen_fp_bbox = []
     gt_fp_difficult= []
@@ -97,14 +98,19 @@ if __name__ == '__main__':
             dt_box_fp = dt_box_fp.view(dt_box_fp.shape[0], -1, 7)
             gen_data = gen_data.view(dt_box_fp.shape[0], -1, 7)
 
+            gen_input.extend(generate_input)
             gt_fp_bbox.extend(dt_box_fp)
             gen_fp_bbox.extend(gen_data)
             gt_fp_difficult.extend(difficult)
     
+    gen_input = list_of_tensor_2_tensor(gen_input)
     gt_fp_bbox = list_of_tensor_2_tensor(gt_fp_bbox)
     gen_fp_bbox = list_of_tensor_2_tensor(gen_fp_bbox)
 
-    for i in range(0, 15):
+    for i in range(0, 2):
+        print(gen_input[i])
+        print(gt_fp_bbox[i])
+        print(gen_fp_bbox[i])
         plot_all_fp_bboxes(5984 + i, gt_fp_bbox[i], gen_fp_bbox[i])    # 传入图片数，gt_fp_bbox，gen_fp_bbox，并画图
 
     # all_iou = []

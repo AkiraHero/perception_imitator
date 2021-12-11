@@ -208,7 +208,7 @@ def inverse_rigid_trans(Tr):
     return inv_Tr
 def scale_to_255(a, min, max, dtype=np.uint8):
 	return ((a - min) / float(max - min) * 255).astype(dtype)
-def plot_cloud_dev(pointcloud):
+def plot_cloud_bev(pointcloud):
     # 点云读取
     print(pointcloud.shape)
     # 设置鸟瞰图范围
