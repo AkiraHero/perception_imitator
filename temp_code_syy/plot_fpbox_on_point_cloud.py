@@ -86,8 +86,7 @@ if __name__ == '__main__':
     data_root = "D:/1Pjlab/ADModel_Pro/data" 
     db_file = os.path.join(data_root, "gt_dt_matching_res.pkl")
 
-    img_id = 12
-    for img_id in range(30,100):
+    for img_id in range(1, 7481):
         print("now processing: %06d"%img_id)
         lidar_path = r'F:/Kitti/data_object_velodyne/training/velodyne/%06d.bin' % img_id  ## Path ## need to be changed
         point_cloud = np.fromfile(lidar_path, dtype=np.float32).reshape(-1, 4)

@@ -13,15 +13,10 @@ import math
 def label_str2num(clss):
     d = {
         'Car': 1,
-        'Van': 1,
-        'Truck': 1,
-        'Tram': 1,
-        'Misc': 1,
         'Pedestrian': 2,
-        'Person_sitting':2,
         'Cyclist': 3
     }
-    return d[clss]
+    return d[clss] if clss in ['Car', 'Pedestrian', 'Cyclist'] else 4
 
 def get_bbox(carla_line):
     cls = label_str2num(carla_line.split(" ")[0])
@@ -50,7 +45,7 @@ def get_gtbbox_gen_fpbbox():
         for line in f_gt.readlines():            
             gt_bbox = get_bbox(line)
             gt_bboxes.extend(gt_bbox)
-        gt_bboxes = gt_bboxes[:200] + [0,]*(200-len(gt_bboxes))  # 仿照kitti，将gtbbox上限为25个，25*8=200
+        gt_bboxes = gt_bboxes[:640] + [0,]*(640-len(gt_bboxes))  # 仿照kitti，将gtbbox上限为80个，80*8=6460
 
         # 得到场景中的fpbboxes对应的index
         fp_index = []
@@ -81,7 +76,7 @@ def get_gtbbox_gen_fpbbox():
 
 if __name__ == '__main__':
     data_root = "D:/1Pjlab/Datasets/carla_openpcd_data"
-    gt_file = os.path.join(data_root, "gt")
+    gt_file = os.path.join(data_root, "gt_label/kitti_label")
     dt_file = os.path.join(data_root, "dt")
     dt_type_file = os.path.join(data_root, "dt_type")
 

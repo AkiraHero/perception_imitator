@@ -212,8 +212,8 @@ def plot_cloud_bev(pointcloud):
     # 点云读取
     print(pointcloud.shape)
     # 设置鸟瞰图范围
-    side_range = (-40, 40)  # 左右距离
-    fwd_range = (0, 70.4)  # 后前距离
+    side_range = (-20, 20)  # 左右距离
+    fwd_range = (0, 40)  # 后前距离
     
     x_points = pointcloud[:, 0]
     y_points = pointcloud[:, 1]
@@ -228,7 +228,7 @@ def plot_cloud_bev(pointcloud):
     y_points = y_points[indices]
     z_points = z_points[indices]
     
-    res = 0.1  # 分辨率0.05m
+    res = 0.05 # 分辨率0.05m
     x_img = (-y_points / res).astype(np.int32)
     y_img = (-x_points / res).astype(np.int32)
     # 调整坐标原点
@@ -237,7 +237,7 @@ def plot_cloud_bev(pointcloud):
     print(x_img.min(), x_img.max(), y_img.min(), x_img.max())
     
     # 填充像素值
-    height_range = (-2, 0.5)
+    height_range = (-3, 3)
     pixel_value = np.clip(a=z_points, a_max=height_range[1], a_min=height_range[0])
 
     pixel_value = scale_to_255(pixel_value, height_range[0], height_range[1])
@@ -255,6 +255,7 @@ def plot_cloud_bev(pointcloud):
     # imshow （彩色）
     # plt.imshow(im, cmap="nipy_spectral", vmin=0, vmax=255)
     # plt.show()
+
 def plot_cloud_easy(pointcloud):
     x = pointcloud[:, 0]  # [ 0  3  6  9 12 15 18 21]
     y = pointcloud[:, 1]  # [ 1  4  7 10 13 16 19 22]
@@ -272,6 +273,7 @@ def plot_cloud_easy(pointcloud):
     ax.set_xlabel('X', fontdict={'size': 15, 'color': 'red'})
     
     plt.show()
+
 def euclidean_distance(k,h,pointIndex):
     '''
     计算一个点到某条直线的euclidean distance
@@ -341,8 +343,6 @@ def get_cloud_in_gtbbox(img_id, gt_annos):
 
     return (point_clouds_in_gtbbox)
 
-
-
 def get_kitti_object_cloud_v2():
 
     save_object_cloud_path = r'F:/Kitti/data_object_velodyne/training/cloud_in_bbox'
@@ -361,7 +361,7 @@ def get_kitti_object_cloud_v2():
     # print(db['dt_annos'][num])
     # print(db['gt_annos'][num])
 
-    for img_id in range(0,7481):
+    for img_id in range(0,1):
         print("now processing: %06d"%img_id)
         lidar_path = r'F:/Kitti/data_object_velodyne/training/velodyne/%06d.bin' % img_id  ## Path ## need to be changed
         # label_path = r'D:\KITTI\Object\training\label_2\%06d.txt' % img_id  ## Path ## need to be changed
@@ -434,9 +434,9 @@ def get_kitti_object_cloud_v2():
                     continue
 
                 # 保存每帧各个检测框的结果
-                np.save(save_object_cloud_path+'/%06d-%d-%s-%s' % (img_id, dt_i, adjust_label, dt_box_prop) ,object_cloud)
+                # np.save(save_object_cloud_path+'/%06d-%d-%s-%s' % (img_id, dt_i, adjust_label, dt_box_prop) ,object_cloud)
 
-                # plot_cloud_easy(temp_object_cloud)
+                plot_cloud_bev(points)
 
 
 if __name__ == '__main__':
