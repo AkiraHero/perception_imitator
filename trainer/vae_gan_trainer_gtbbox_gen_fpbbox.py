@@ -116,11 +116,14 @@ class VAEGANTrainerGtbboxGenFpbbox(TrainerBase):
 
                 # # Update D
                 errD.backward()
+                # for name, parms in self.model.discriminator.named_parameters(): 
+                #     print('-->name:', name, '-->grad_requirs:',parms.requires_grad, 
+                #     ' -->grad_value:',parms.grad)
                 self.logger.log_data("errD", errD)
                 self.logger.log_data("err_real", errD_real)
                 self.logger.log_data("err_fake", errD_fake)
                 self.discriminator_optimizer.step()
-
+                '''
                 ############################
                 # (2) Update G network: maximize log(D(G(z)))
                 ###########################
@@ -139,7 +142,7 @@ class VAEGANTrainerGtbboxGenFpbbox(TrainerBase):
                 errG_KLD = torch.sum(KLD_element).mul_(-0.5)
 
                 errG = errG1.add_(errG_KLD)
-                # errG = errG1
+                errG = errG1
                 errG.backward()
                 self.logger.log_data("err_G", errG)
                 self.logger.log_data("err_G1", errG1)
@@ -148,15 +151,16 @@ class VAEGANTrainerGtbboxGenFpbbox(TrainerBase):
 
                 # Update G
                 self.generator_optimizer.step()
+                '''
 
                 print(
                     f'Epoch: [{epoch + 1:0>{len(str(epoch))}}/{self.max_epoch}]',
                     f'Step: [{step}/{len(self.data_loader)}]',
                     f'Loss-D: {errD.item():.4f}',
-                    f'Loss-G: {errG.item():.4f}',
+                    # f'Loss-G: {errG.item():.4f}',
                     f'D(x): {D_x:.4f}',
-                    f'D(G(z)): [{D_G_z1:.4f}/{D_G_z2:.4f}]'
+                    # f'D(G(z)): [{D_G_z1:.4f}/{D_G_z2:.4f}]'
                 )
 
-            if epoch % 10 == 0:
-                torch.save(self.model.generator.state_dict(), 'D:/1Pjlab/ADModel_Pro/output/gtbbox_gen_20fpbbox_model/' + str(epoch) + ".pt")
+            # if epoch % 10 == 0:
+            #     torch.save(self.model.generator.state_dict(), 'D:/1Pjlab/ADModel_Pro/output/carla_gtbbox_gen_20fpbbox_model/' + str(epoch) + ".pt")

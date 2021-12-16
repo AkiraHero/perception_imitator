@@ -12,8 +12,8 @@ class VAEAllFPExplicit(ModelBase):
         self.fc21 = nn.Linear(1024, 128)
         self.fc22 = nn.Linear(1024, 128)
         self.fc3 = nn.Linear(128, 1024)
-        self.fc4 = nn.Linear(1024, 512)
-        self.fc5 = nn.Linear(512, 140)
+        self.fc4 = nn.Linear(1024, 1024)
+        self.fc5 = nn.Linear(1024, 140)
 
     def forward(self, x):
         x = self.encoder(x)

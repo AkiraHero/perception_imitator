@@ -31,9 +31,9 @@ def change_data_form(data):
             data[k] = v
 
 def plot_all_fp_bboxes(img_id, gt_fp_bboxes, gen_fp_bboxes):
-    print("now processing: %06d"%img_id)
-    lidar_path = r'F:/Kitti/data_object_velodyne/training/velodyne/%06d.bin' % img_id  ## Path ## need to be changed
-    point_cloud = np.fromfile(lidar_path, dtype=np.float32).reshape(-1, 4)
+    # print("now processing: %06d"%img_id)
+    # lidar_path = r'F:/Kitti/data_object_velodyne/training/velodyne/%06d.bin' % img_id  ## Path ## need to be changed
+    # point_cloud = np.fromfile(lidar_path, dtype=np.float32).reshape(-1, 4)
     
     # 创建画布并且绘制点云图
     fig = plt.figure(figsize=(20, 20))
@@ -73,7 +73,7 @@ if __name__ == '__main__':
     # instantiating all modules by non-singleton factory
     model = ModelFactory.get_model(config.model_config)
 
-    paras = torch.load("D:/1Pjlab/ADModel_Pro/output/gtbbox_gen_20fpbbox_model_add_density/500.pt") # 500、700尚可
+    paras = torch.load("D:/1Pjlab/ADModel_Pro/output/carla_gtbbox_gen_20fpbbox_model/80.pt") # 500、700尚可
     model.generator.load_model_paras(paras)
     model.set_eval()
     model.set_device("cuda:0")
@@ -92,7 +92,7 @@ if __name__ == '__main__':
             print('Step:', step)
             generate_input = data['gt_bboxes'].cuda()
             dt_box_fp = data['fp_bboxes_all'].cuda()
-            difficult = data['difficult'].cuda()
+            # difficult = data['difficult'].cuda()
 
             gen_data,_,_ = model.generator(generate_input)
             dt_box_fp = dt_box_fp.view(dt_box_fp.shape[0], -1, 7)
@@ -101,16 +101,16 @@ if __name__ == '__main__':
             gen_input.extend(generate_input)
             gt_fp_bbox.extend(dt_box_fp)
             gen_fp_bbox.extend(gen_data)
-            gt_fp_difficult.extend(difficult)
+            # gt_fp_difficult.extend(difficult)
     
     gen_input = list_of_tensor_2_tensor(gen_input)
     gt_fp_bbox = list_of_tensor_2_tensor(gt_fp_bbox)
     gen_fp_bbox = list_of_tensor_2_tensor(gen_fp_bbox)
 
-    for i in range(0, 2):
-        print(gen_input[i])
-        print(gt_fp_bbox[i])
-        print(gen_fp_bbox[i])
+    for i in range(5, 7):
+        # print(gen_input[i])
+        # print(gt_fp_bbox[i])
+        # print(gen_fp_bbox[i])
         plot_all_fp_bboxes(5984 + i, gt_fp_bbox[i], gen_fp_bbox[i])    # 传入图片数，gt_fp_bbox，gen_fp_bbox，并画图
 
     # all_iou = []

@@ -18,15 +18,24 @@ def label_str2num(clss):
     }
     return d[clss] if clss in ['Car', 'Pedestrian', 'Cyclist'] else 4
 
-def get_bbox(carla_line):
+def get_gt_bbox(carla_line):
     cls = label_str2num(carla_line.split(" ")[0])
     [h, w, l] = map(float, carla_line.split(" ")[8:11])
-    [x, y ,z] = map(float, carla_line.split(" ")[11:14])
+    [y, z, x] = map(float, carla_line.split(" ")[11:14])
     rot = math.atan(math.tan(float(carla_line.split(" ")[14])))
 
     gt_bbox = [x, y, z, l, w, h, rot, cls]  # 一个框的参数
 
     return gt_bbox
+
+def get_dt_bbox(carla_line):
+    [h, w, l] = map(float, carla_line.split(" ")[8:11])
+    [y, z, x] = map(float, carla_line.split(" ")[11:14])
+    rot = math.atan(math.tan(float(carla_line.split(" ")[14])))
+
+    dt_bbox = [x, y, z, l, w, h, rot]  # 一个框的参数
+
+    return dt_bbox
 
 def get_gtbbox_gen_fpbbox():
     # 读取所有场景id name
@@ -43,7 +52,7 @@ def get_gtbbox_gen_fpbbox():
 
         # 得到场景中的gtbboxes
         for line in f_gt.readlines():            
-            gt_bbox = get_bbox(line)
+            gt_bbox = get_gt_bbox(line)
             gt_bboxes.extend(gt_bbox)
         gt_bboxes = gt_bboxes[:640] + [0,]*(640-len(gt_bboxes))  # 仿照kitti，将gtbbox上限为80个，80*8=6460
 
@@ -64,7 +73,7 @@ def get_gtbbox_gen_fpbbox():
         # 得到场景中的fpbboxes
         for i, line in enumerate(f_dt.readlines()):
             if i in fp_index:
-                dt_bbox = get_bbox(line)
+                dt_bbox = get_dt_bbox(line)
                 dt_bboxes.extend(dt_bbox)
         dt_bboxes = dt_bboxes[:140] + [0,]*(140-len(dt_bboxes))
     

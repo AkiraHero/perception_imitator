@@ -1,6 +1,6 @@
 name: mlp
 paras:
-  input_size: 350
+  input_size: 640
   layer_act_func:
   - relu
   - relu
