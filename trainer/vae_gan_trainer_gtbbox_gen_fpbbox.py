@@ -79,9 +79,8 @@ class VAEGANTrainerGtbboxGenFpbbox(TrainerBase):
                                                         real_label, dtype=torch.float, device=self.device)                                  
 
                 # Forward pass real batch through discriminator
+                output = self.model.discriminator(discriminator_input_real).view(-1)
                 # output = normalize_gradient(self.model.discriminator, discriminator_input_real).view(-1)
-                # output = self.model.discriminator(discriminator_input_real).view(-1)
-                output = normalize_gradient(self.model.discriminator, discriminator_input_real).view(-1)
 
                 # Calculate loss on all-real batch
                 errD_real = criterion(output, gt_fp_box_label).sum() / cur_batch_size
@@ -100,16 +99,15 @@ class VAEGANTrainerGtbboxGenFpbbox(TrainerBase):
                                                         fake_label, dtype=torch.float, device=self.device)
 
                 # # Classify all fake batch with D
+                output2 = self.model.discriminator(discriminator_input_fake.detach()).view(-1)
                 # output2 = normalize_gradient(self.model.discriminator, discriminator_input_fake.detach()).view(-1)
-                # output2 = self.model.discriminator(discriminator_input_fake.detach()).view(-1)
-                output2 = normalize_gradient(self.model.discriminator, discriminator_input_fake.detach()).view(-1)
 
                 # Calculate D's loss on the all-fake batch
                 errD_fake = criterion(output2, generated_label).sum() / cur_batch_size
 
                 # Calculate the gradients for this batch
                 # errD_fake.backward()
-                D_G_z1 = output.mean().item()
+                D_G_z1 = output2.mean().item()
                 # Add the gradients from the all-real and all-fake batches
                 errD = errD_real + errD_fake  # 希望对真实数据接近label1，对于假数据接近label0
 
@@ -130,9 +128,8 @@ class VAEGANTrainerGtbboxGenFpbbox(TrainerBase):
 
                 # real_fake_label_fullfilled.fill_(real_label)  # fake labels are real for generator cost
                 # Since we just updated D, perform another forward pass of all-fake batch through D
+                output2 = self.model.discriminator(discriminator_input_fake).view(-1)
                 # output2 = normalize_gradient(self.model.discriminator, discriminator_input_fake).view(-1)
-                # output2 = self.model.discriminator(discriminator_input_fake).view(-1)
-                output2 = normalize_gradient(self.model.discriminator, discriminator_input_fake.detach()).view(-1)
 
                 # Calculate G's loss based on this output
                 errG1 = criterion(output2, gt_fp_box_label).sum() / cur_batch_size  # 希望生成的假数据能让D判成1
@@ -146,7 +143,7 @@ class VAEGANTrainerGtbboxGenFpbbox(TrainerBase):
                 self.logger.log_data("err_G", errG)
                 self.logger.log_data("err_G1", errG1)
 
-                D_G_z2 = output.mean().item()
+                D_G_z2 = output2.mean().item()
 
                 # Update G
                 self.generator_optimizer.step()

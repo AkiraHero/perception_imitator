@@ -73,7 +73,7 @@ if __name__ == '__main__':
     # instantiating all modules by non-singleton factory
     model = ModelFactory.get_model(config.model_config)
 
-    paras = torch.load("D:/1Pjlab/ADModel_Pro/output/carla_gtbbox_gen_20fpbbox_model/160.pt") # 500、700尚可
+    paras = torch.load("D:/1Pjlab/ADModel_Pro/output/carla_gtbbox_gen_20fpbbox_model/180.pt") # 500、700尚可
     model.generator.load_model_paras(paras)
     model.set_eval()
     model.set_device("cuda:0")
