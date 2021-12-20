@@ -15,11 +15,11 @@ training:
   optimizer:
   - name: encoder_opt
     paras:
-      lr: 0.0005
+      lr: 0.0001
     type: Adam
   - name: discriminator_opt
     paras:
-      lr: 0.0005
+      lr: 0.0001
     type: Adam
   trainer_class: VAEGANTrainerGtbboxGenFpbbox
   tensorboard_out_path: default

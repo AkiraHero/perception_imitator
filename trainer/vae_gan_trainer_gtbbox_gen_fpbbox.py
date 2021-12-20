@@ -66,24 +66,25 @@ class VAEGANTrainerGtbboxGenFpbbox(TrainerBase):
 
                 gt_bboxes = data['gt_bboxes']
                 cur_batch_size = gt_bboxes.shape[0]
-                fp_bboxes = data['fp_bboxes_all'].reshape(cur_batch_size, -1, 7)
+                fp_bboxes = data['fp_bboxes_all']
 
                 # self.discriminator_optimizer.zero_grad()
                 self.model.discriminator.zero_grad()
 
                 # Get output of target_model
-                generator_input = gt_bboxes # bs*200
-                discriminator_input_real = self.get_cat_dis_input(generator_input, fp_bboxes)   # bs*20 * (350+7)
-                discriminator_input_real = discriminator_input_real.reshape(-1, discriminator_input_real.shape[-1]) # (bs*20) * (350+7)
+                generator_input = gt_bboxes # bs*640
+                discriminator_input_real = torch.cat((generator_input, fp_bboxes), 1)   # bs * (640+140)
 
                 gt_fp_box_label = torch.full((discriminator_input_real.shape[0],),
                                                         real_label, dtype=torch.float, device=self.device)                                  
 
                 # Forward pass real batch through discriminator
+                # output = normalize_gradient(self.model.discriminator, discriminator_input_real).view(-1)
+                # output = self.model.discriminator(discriminator_input_real).view(-1)
                 output = normalize_gradient(self.model.discriminator, discriminator_input_real).view(-1)
 
                 # Calculate loss on all-real batch
-                errD_real = criterion(output, gt_fp_box_label).mul(self.mask(fp_bboxes)[0]).sum() / self.mask(fp_bboxes)[1]
+                errD_real = criterion(output, gt_fp_box_label).sum() / cur_batch_size
 
                 # Calculate gradients for D in backward pass
                 # errD_real.backward()
@@ -94,19 +95,17 @@ class VAEGANTrainerGtbboxGenFpbbox(TrainerBase):
 
                 # Generate fake image batch with G
                 gen_box_fp, mu, logvar = self.model.generator(generator_input) 
-                gen_box_fp = gen_box_fp.reshape(cur_batch_size, -1, 7)
-                
-                discriminator_input_fake = self.get_cat_dis_input(generator_input, gen_box_fp)
-                discriminator_input_fake = discriminator_input_fake.reshape(-1, discriminator_input_fake.shape[-1])
-
+                discriminator_input_fake = torch.cat((generator_input, gen_box_fp), 1)
                 generated_label = torch.full((discriminator_input_fake.shape[0],),
                                                         fake_label, dtype=torch.float, device=self.device)
 
                 # # Classify all fake batch with D
+                # output2 = normalize_gradient(self.model.discriminator, discriminator_input_fake.detach()).view(-1)
+                # output2 = self.model.discriminator(discriminator_input_fake.detach()).view(-1)
                 output2 = normalize_gradient(self.model.discriminator, discriminator_input_fake.detach()).view(-1)
 
                 # Calculate D's loss on the all-fake batch
-                errD_fake = criterion(output2, generated_label).sum() / discriminator_input_fake.shape[0]
+                errD_fake = criterion(output2, generated_label).sum() / cur_batch_size
 
                 # Calculate the gradients for this batch
                 # errD_fake.backward()
@@ -123,20 +122,20 @@ class VAEGANTrainerGtbboxGenFpbbox(TrainerBase):
                 self.logger.log_data("err_real", errD_real)
                 self.logger.log_data("err_fake", errD_fake)
                 self.discriminator_optimizer.step()
-                '''
+
                 ############################
                 # (2) Update G network: maximize log(D(G(z)))
                 ###########################
-                # netG.zero_grad()
-                # self.generator_optimizer.zero_grad()
                 self.model.generator.zero_grad()
 
                 # real_fake_label_fullfilled.fill_(real_label)  # fake labels are real for generator cost
                 # Since we just updated D, perform another forward pass of all-fake batch through D
-                output2 = normalize_gradient(self.model.discriminator, discriminator_input_fake).view(-1)
+                # output2 = normalize_gradient(self.model.discriminator, discriminator_input_fake).view(-1)
+                # output2 = self.model.discriminator(discriminator_input_fake).view(-1)
+                output2 = normalize_gradient(self.model.discriminator, discriminator_input_fake.detach()).view(-1)
 
                 # Calculate G's loss based on this output
-                errG1 = criterion(output2, gt_fp_box_label).sum() / discriminator_input_fake.shape[0]  # 希望生成的假数据能让D判成1
+                errG1 = criterion(output2, gt_fp_box_label).sum() / cur_batch_size  # 希望生成的假数据能让D判成1
 
                 KLD_element = mu.pow(2).add_(logvar.exp()).mul_(-1).add_(1).add_(logvar)
                 errG_KLD = torch.sum(KLD_element).mul_(-0.5)
@@ -151,16 +150,15 @@ class VAEGANTrainerGtbboxGenFpbbox(TrainerBase):
 
                 # Update G
                 self.generator_optimizer.step()
-                '''
-
+                
                 print(
                     f'Epoch: [{epoch + 1:0>{len(str(epoch))}}/{self.max_epoch}]',
                     f'Step: [{step}/{len(self.data_loader)}]',
                     f'Loss-D: {errD.item():.4f}',
-                    # f'Loss-G: {errG.item():.4f}',
+                    f'Loss-G: {errG.item():.4f}',
                     f'D(x): {D_x:.4f}',
-                    # f'D(G(z)): [{D_G_z1:.4f}/{D_G_z2:.4f}]'
+                    f'D(G(z)): [{D_G_z1:.4f}/{D_G_z2:.4f}]'
                 )
 
-            # if epoch % 10 == 0:
-            #     torch.save(self.model.generator.state_dict(), 'D:/1Pjlab/ADModel_Pro/output/carla_gtbbox_gen_20fpbbox_model/' + str(epoch) + ".pt")
+            if epoch % 10 == 0:
+                torch.save(self.model.generator.state_dict(), 'D:/1Pjlab/ADModel_Pro/output/carla_gtbbox_gen_20fpbbox_model/' + str(epoch) + ".pt")

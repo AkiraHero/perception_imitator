@@ -6,6 +6,6 @@ paras:
   - relu
   - relu
   layer_node_num:
-  - 2048
-  - 2048
   - 1024
+  - 512
+  - 256
