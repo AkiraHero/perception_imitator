@@ -212,8 +212,8 @@ def plot_cloud_bev(pointcloud):
     # 点云读取
     print(pointcloud.shape)
     # 设置鸟瞰图范围
-    side_range = (-20, 20)  # 左右距离
-    fwd_range = (0, 40)  # 后前距离
+    side_range = (-40, 40)  # 左右距离
+    fwd_range = (0, 70.4)  # 后前距离
     
     x_points = pointcloud[:, 0]
     y_points = pointcloud[:, 1]
@@ -228,13 +228,13 @@ def plot_cloud_bev(pointcloud):
     y_points = y_points[indices]
     z_points = z_points[indices]
     
-    res = 0.05 # 分辨率0.05m
+    res = 0.2 # 分辨率0.05m
     x_img = (-y_points / res).astype(np.int32)
     y_img = (-x_points / res).astype(np.int32)
     # 调整坐标原点
     x_img -= int(np.floor(side_range[0]) / res)
     y_img += int(np.floor(fwd_range[1]) / res)
-    print(x_img.min(), x_img.max(), y_img.min(), x_img.max())
+    # print(x_img.min(), x_img.max(), y_img.min(), x_img.max())
     
     # 填充像素值
     height_range = (-3, 3)
@@ -372,7 +372,7 @@ def get_kitti_object_cloud_v2():
 
         # 提取点云数据
         points = np.fromfile(lidar_path, dtype=np.float32).reshape(-1, 4)  # .astype(np.float16)
-        # plot_cloud_dev(points)
+        # plot_cloud_bev(points)
 
         for dt_i in range(num_dt): # 处理第dt_i个检测框数据
             if dt_annos[img_id]['name'][dt_i] != 'DontCare':
@@ -440,4 +440,16 @@ def get_kitti_object_cloud_v2():
 
 
 if __name__ == '__main__':
-    get_kitti_object_cloud_v2()
+    # get_kitti_object_cloud_v2()
+
+    # 临时加入观看bev图
+    for img_id in range(6,7):
+        print("now processing: %06d"%img_id)
+        lidar_path = r'C:/Users/44708/Desktop/%06d.bin' % img_id  ## Path ## need to be changed
+        # label_path = r'D:\KITTI\Object\training\label_2\%06d.txt' % img_id  ## Path ## need to be changed
+        # calib_path = r'F:/Kitti/data_object_velodyne/training/calib/%06d.txt' % img_id
+        # calibs = Calibration(calib_path)
+
+        # 提取点云数据
+        points = np.fromfile(lidar_path, dtype=np.float32).reshape(-1, 4)  # .astype(np.float16)
+        plot_cloud_bev(points)

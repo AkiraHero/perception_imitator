@@ -1,7 +1,7 @@
 '''
 1、根据每一帧的检测结果画出该帧下的FP框的Heatmap图
-具体实现：需要选取bev下的一定范围（待定），进行固定大小数组的初始化；将每个FP框按照中心点以及长宽生成heatmap填入该矩阵
-2、将多帧的数据汇总：简单叠加取平均值，得到最终的heatmap。
+具体实现:需要选取bev下的一定范围（待定），进行固定大小数组的初始化；将每个FP框按照中心点以及长宽生成heatmap填入该矩阵
+2、将多帧的数据汇总:简单叠加取平均值，得到最终的heatmap。
 '''
 
 from os import name
@@ -14,22 +14,68 @@ import matplotlib.pyplot as plt
 from PIL import Image
 from numpy.testing._private.utils import break_cycles
 
+def label_str2num(clss):
+    d = {
+        'Car': 1,
+        'Van': 1,
+        'Truck': 1,
+        'Tram': 1,
+        'Misc': 1,
+        'Pedestrian': 2,
+        'Person_sitting':2,
+        'Cyclist': 3
+    }
+    return d[clss]
+
 def scale_to_255(a, min, max, dtype=np.uint8):
 	return ((a - min) / float(max - min) * 255).astype(dtype)
-    
-def get_Gausseheat(bbox_length, bbox_width):
-    size = int(math.sqrt(bbox_length * bbox_width)) 
-    kernel=cv2.getGaussianKernel(size,size/5)
-    kernel=kernel*kernel.T
-    # scales all the values and make the center vaule of kernel to be 1.0
-    kernel=kernel/np.max(kernel)
-    # heatmap=kernel*255
-    heatmap=kernel
-    # heatmap=heatmap.astype(np.uint8)
-    # heatmap=cv2.applyColorMap(heatmap, cv2.COLORMAP_HOT)
-    # cv2.imshow('heatmap',heatmap)
-    # cv2.waitKey(0)
-    return size, heatmap
+
+def gaussian_radius(det_size, min_overlap=0.5):
+    height, width = det_size
+
+    a1  = 1
+    b1  = (height + width)
+    c1  = width * height * (1 - min_overlap) / (1 + min_overlap)
+    sq1 = np.sqrt(b1 ** 2 - 4 * a1 * c1)
+    r1  = (b1 + sq1) / 2
+
+    a2  = 4
+    b2  = 2 * (height + width)
+    c2  = (1 - min_overlap) * width * height
+    sq2 = np.sqrt(b2 ** 2 - 4 * a2 * c2)
+    r2  = (b2 + sq2) / 2
+
+    a3  = 4 * min_overlap
+    b3  = -2 * min_overlap * (height + width)
+    c3  = (min_overlap - 1) * width * height
+    sq3 = np.sqrt(b3 ** 2 - 4 * a3 * c3)
+    r3  = (b3 + sq3) / 2
+    return min(r1, r2, r3)
+
+def gaussian2D(shape, sigma=1):
+    m, n = [(ss - 1.) / 2. for ss in shape]
+    y, x = np.ogrid[-m:m+1,-n:n+1]
+
+    h = np.exp(-(x * x + y * y) / (2 * sigma * sigma))
+    h[h < np.finfo(h.dtype).eps * h.max()] = 0
+    return h
+
+def draw_umich_gaussian(heatmap, center, radius, k=1):
+    diameter = 2 * radius + 1
+    gaussian = gaussian2D((diameter, diameter), sigma=diameter / 6)
+
+    x, y = int(center[0]), int(center[1])
+
+    height, width = heatmap.shape[0:2]
+
+    left, right = min(x, radius), min(width - x, radius + 1)
+    top, bottom = min(y, radius), min(height - y, radius + 1)
+
+    masked_heatmap  = heatmap[y - top:y + bottom, x - left:x + right]
+    masked_gaussian = gaussian[radius - top:radius + bottom, radius - left:radius + right]
+    if min(masked_gaussian.shape) > 0 and min(masked_heatmap.shape) > 0: # TODO debug
+        np.maximum(masked_heatmap, masked_gaussian * k, out=masked_heatmap)
+    return heatmap
 
 def plot_cloud_bev(pointcloud, res, side_range, fwd_range):    
     x_points = pointcloud[:, 0]
@@ -58,8 +104,8 @@ def plot_cloud_bev(pointcloud, res, side_range, fwd_range):
     pixel_value = scale_to_255(pixel_value, height_range[0], height_range[1])
     
     # 创建图像数组
-    x_max = 1 + int((side_range[1] - side_range[0]) / res)
-    y_max = 1 + int((fwd_range[1] - fwd_range[0]) / res)
+    x_max = int((side_range[1] - side_range[0]) / res)
+    y_max = int((fwd_range[1] - fwd_range[0]) / res)
     im = np.zeros([y_max, x_max], dtype=np.uint8)
     im[y_img, x_img] = pixel_value
     
@@ -68,38 +114,44 @@ def plot_cloud_bev(pointcloud, res, side_range, fwd_range):
     # im2.show()
     
     # imshow （彩色）
-    plt.imshow(im, cmap="nipy_spectral", vmin=0, vmax=255)
+    # plt.imshow(im, cmap="nipy_spectral", vmin=0, vmax=255)
     # plt.show()
 
     return x_max, y_max
 
 def get_heatmaps(img_id, gt_dt_matching_res, result, res, side_range, fwd_range, x_max, y_max):    
     dt_bboxes = result[img_id]['boxes_lidar']   # id帧下的所有检测框
+    print(result[img_id])
+    scores = result[img_id]['score']    # id帧下的所有检测框得分
+    classes = result[img_id]['name']
     matching_index = gt_dt_matching_res['bev'][img_id]
 
     im = np.zeros([y_max, x_max])
     for index in range(len(dt_bboxes)):
         if index not in matching_index: # 处理一个检测框
-            x_center = dt_bboxes[index][0]
-            y_center = dt_bboxes[index][1]
-            bbox_length = dt_bboxes[index][3]
-            bbox_width = dt_bboxes[index][4]
-            pixel_length = bbox_length/res
-            pixel_width = bbox_width/res
+            if scores[index] >= 0.5 and label_str2num(classes[index]) == 1:
+                x_center = dt_bboxes[index][0]
+                y_center = dt_bboxes[index][1]
+                bbox_length = dt_bboxes[index][3]
+                bbox_width = dt_bboxes[index][4]
+                pixel_length = bbox_length/res
+                pixel_width = bbox_width/res
 
-            if x_center<fwd_range[0]+3 or x_center>fwd_range[1]-3 or y_center<side_range[0]+3 or y_center>side_range[1]-3:
-                break
-            
-            size, heatmap = get_Gausseheat(pixel_length, pixel_width) # 
+                size = int(gaussian_radius((pixel_length, pixel_width))) * 6
 
-            # 调整坐标到图片坐标系
-            img_x_center = (-y_center / res).astype(np.int32)
-            img_y_center = (-x_center / res).astype(np.int32)        
-            img_x_center -= int(np.floor(side_range[0]) / res)
-            img_y_center += int(np.floor(fwd_range[1]) / res)
+                if x_center-size*res/2<fwd_range[0] or x_center+size*res/2>fwd_range[1] or y_center-size*res/2<side_range[0]+5 or y_center+size*res/2>side_range[1]-5:
+                    break
 
-            # 将gausse heat画在图片上
-            im[img_y_center - int(size/2):img_y_center - int(size/2) + size, img_x_center - int(size/2):img_x_center - int(size/2) + size] = heatmap
+                # 调整坐标到图片坐标系
+                img_x_center = (-y_center / res).astype(np.int32)
+                img_y_center = (-x_center / res).astype(np.int32)        
+                img_x_center -= int(np.floor(side_range[0]) / res)
+                img_y_center += int(np.floor(fwd_range[1]) / res)
+
+                # 将gausse heat画在图片上
+                draw_umich_gaussian(im, (img_x_center, img_y_center), size)
+            else:
+                pass
 
     # im = cv2.applyColorMap(im, cv2.COLORMAP_HOT)[...,::-1]
     # plt.imshow(im, cmap="nipy_spectral", vmin=0, vmax=255)
@@ -109,69 +161,15 @@ def get_heatmaps(img_id, gt_dt_matching_res, result, res, side_range, fwd_range,
 
 
 if __name__ == '__main__':
-    '''
-    for img_id in range(1,2):
-        print("now processing: %06d"%img_id)
-
-        lidar_path = r'F:/Kitti/data_object_velodyne/training/velodyne/%06d.bin' % img_id  ## Path ## need to be changed
-        exp_path = 'D:/1Pjlab/Datasets/kitti-pvrcnn-epch8369-392dropout/default'
-
-        # 设置鸟瞰图范围
-        res = 0.05 # 分辨率0.05m
-        side_range = (-40, 40)  # 左右距离
-        fwd_range = (0, 70.4)  # 后前距离
-
-        # 提取点云数据
-        points = np.fromfile(lidar_path, dtype=np.float32).reshape(-1, 4)  # .astype(np.float16)
-        x_max, y_max = plot_cloud_bev(points, res, side_range, fwd_range) # 画点云鸟瞰图，并返回图像大小
-        
-        i = 0
-        all_heatmap = np.zeros([y_max, x_max], dtype=np.uint8)  # 汇总heatmap
-        for exp_id in os.listdir(exp_path):
-            print('\r', exp_id)
-            i = i+1
-            exp_name = os.path.join(exp_path, exp_id)   # 每次dropout实验的文件夹
-            matching_name = os.path.join(exp_name, 'gt_dt_matching_res.pkl')
-            result_name = os.path.join(exp_name, 'result.pkl')
-
-            with open(matching_name, 'rb') as f:
-                gt_dt_matching_res = pickle.load(f)
-            with open(result_name, 'rb') as f:
-                result = pickle.load(f)
-
-            one_heatmap = get_heatmaps(img_id, gt_dt_matching_res, result, res, side_range, fwd_range, x_max, y_max)
-            plot_heatmap = one_heatmap * 255
-            plot_heatmap = plot_heatmap.astype(np.uint8)
-            plot_heatmap = cv2.applyColorMap(plot_heatmap, cv2.COLORMAP_JET)[...,::-1]
-            plt.imshow(plot_heatmap, alpha = 1,cmap="nipy_spectral", vmin=0, vmax=255)
-            plt.savefig("./output/plot_heatmap/%s--img%d" %(exp_id, img_id))
-            
-            all_heatmap = all_heatmap + one_heatmap
-
-            if i == 5:
-                break
-
-        # all_heatmap = all_heatmap / len(os.listdir(exp_path)) * 255
-        all_heatmap = all_heatmap /  5 * 255
-        all_heatmap = all_heatmap.astype(np.uint8)
-
-        all_heatmap = cv2.applyColorMap(all_heatmap, cv2.COLORMAP_JET)[...,::-1]
-        # plt.imshow(all_heatmap, alpha = 0.5,cmap="nipy_spectral", vmin=0, vmax=255)
-        # plt.show()
-        plot_cloud_bev(points, res, side_range, fwd_range)
-        plt.imshow(all_heatmap, alpha = 0.3,cmap="nipy_spectral", vmin=0, vmax=255)
-        plt.savefig("./output/plot_heatmap/all_heatmap--img%d" %(img_id))
-        plt.show()
-    '''
-
-
+    data_num = 2
+    
     exp_path = 'D:/1Pjlab/Datasets/kitti-pvrcnn-epch8369-392dropout/default'
     # 设置鸟瞰图范围
-    res = 0.05 # 分辨率0.05m
+    res = 0.2 # 分辨率0.2m
     side_range = (-40, 40)  # 雷达坐标系y轴——左右距离
     fwd_range = (0, 70.4)  # 雷达坐标系x轴——后前距离
-    x_max = 1 + int((side_range[1] - side_range[0]) / res)
-    y_max = 1 + int((fwd_range[1] - fwd_range[0]) / res)
+    x_max = int((side_range[1] - side_range[0]) / res)
+    y_max = int((fwd_range[1] - fwd_range[0]) / res)
     all_heatmap = np.zeros([7481, y_max, x_max], dtype=np.float16)  # 汇总heatmap
 
     i = 0
@@ -187,44 +185,38 @@ if __name__ == '__main__':
         with open(result_name, 'rb') as f:
             result = pickle.load(f)
 
-        for img_id in range(0,10):
-            print("now processing: %06d"%img_id)
-
-            lidar_path = r'F:/Kitti/data_object_velodyne/training/velodyne/%06d.bin' % img_id  ## Path ## need to be changed
-
-            # 提取点云数据
-            points = np.fromfile(lidar_path, dtype=np.float32).reshape(-1, 4)  # .astype(np.float16)
-            x_max, y_max = plot_cloud_bev(points, res, side_range, fwd_range) # 画点云鸟瞰图，并返回图像大小
-
+        for img_id in range(0, data_num):
+            # print("now processing: %06d"%img_id)
             one_heatmap = get_heatmaps(img_id, gt_dt_matching_res, result, res, side_range, fwd_range, x_max, y_max)
             
             all_heatmap[img_id] = all_heatmap[img_id] + one_heatmap
-            
-            # 绘制实验exp_id中第img_id张图的heatmap
-            # if i % 20 == 0:
-            #     plot_heatmap = one_heatmap
-            #     plot_heatmap = plot_heatmap * 255
-            #     plot_heatmap = plot_heatmap.astype(np.uint8)
-            #     plot_heatmap = cv2.applyColorMap(plot_heatmap, cv2.COLORMAP_JET)[...,::-1]
-            #     plt.clf()
-            #     plt.imshow(plot_heatmap, cmap="nipy_spectral", vmin=0, vmax=255)
-            #     plt.savefig("./output/plot_heatmap/%s--img%d" %(exp_id, img_id))
-        # if i == 15:
-        #     break
-        i = i + 1
 
-    for i in range(0, 10):
+        # i = i + 1   
+        # if i == 5:
+        #     break
+
+    gtheatmap = []
+    for i in range(0, data_num):
         plot_heatmap = all_heatmap[i]
         plot_heatmap = plot_heatmap/len(os.listdir(exp_path)) * 255
-        # plot_heatmap = plot_heatmap/2 * 255
+        # plot_heatmap = plot_heatmap/5 * 255
         plot_heatmap = plot_heatmap.astype(np.uint8)
-        plot_heatmap = cv2.applyColorMap(plot_heatmap, cv2.COLORMAP_JET)[...,::-1]
+
         plt.clf()
+
         # lidar_path = r'F:/Kitti/data_object_velodyne/training/velodyne/%06d.bin' % i  ## Path ## need to be changed
         # points = np.fromfile(lidar_path, dtype=np.float32).reshape(-1, 4)  # .astype(np.float16)
         # plot_cloud_bev(points, res, side_range, fwd_range)
-        plt.imshow(plot_heatmap, alpha = 1, cmap="nipy_spectral", vmin=0, vmax=255)
-        plt.savefig("./output/plot_heatmap/all_heatmap_origin--img%d" %(i))
+
+        # plt.imshow(plot_heatmap, alpha = 1, cmap="nipy_spectral", vmin=0, vmax=255)
+        # plt.axis('off')
+        # plt.savefig("./output/plot_heatmap/%06d.png" %(i), bbox_inches='tight', pad_inches=0.0)
+
+        heatmap = {'image_id': '%06d'%i, 'gt_heatmap': plot_heatmap}
+        gtheatmap.append(heatmap)
+        
+    # with open("D:/1Pjlab/ADModel_Pro/data/GTheatmap_TP_only_car.pkl", "wb") as f:
+    #     pickle.dump(gtheatmap, f)
 
 
 

@@ -7,5 +7,5 @@ paras:
   - relu
   layer_node_num:
   - 1024
+  - 1024
   - 512
-  - 256

@@ -54,7 +54,7 @@ def get_gtbbox_gen_fpbbox():
         for line in f_gt.readlines():            
             gt_bbox = get_gt_bbox(line)
             gt_bboxes.extend(gt_bbox)
-        gt_bboxes = gt_bboxes[:640] + [0,]*(640-len(gt_bboxes))  # 仿照kitti，将gtbbox上限为80个，80*8=6460
+        gt_bboxes = gt_bboxes[:640] + [0,]*(640-len(gt_bboxes))  # 仿照kitti，将gtbbox上限为80个，80*8=640
 
         # 得到场景中的fpbboxes对应的index
         fp_index = []

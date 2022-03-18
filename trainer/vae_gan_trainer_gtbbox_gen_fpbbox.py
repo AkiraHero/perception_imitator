@@ -138,7 +138,6 @@ class VAEGANTrainerGtbboxGenFpbbox(TrainerBase):
                 errG_KLD = torch.sum(KLD_element).mul_(-0.5)
 
                 errG = errG1.add_(errG_KLD)
-                errG = errG1
                 errG.backward()
                 self.logger.log_data("err_G", errG)
                 self.logger.log_data("err_G1", errG1)

@@ -73,7 +73,7 @@ if __name__ == '__main__':
     # instantiating all modules by non-singleton factory
     model = ModelFactory.get_model(config.model_config)
 
-    paras = torch.load("D:/1Pjlab/ADModel_Pro/output/carla_gtbbox_gen_20fpbbox_model/180.pt") # 500、700尚可
+    paras = torch.load("D:/1Pjlab/ADModel_Pro/output/carla_gtbbox_gen_20fpbbox_model/990.pt") # 500、700尚可
     model.generator.load_model_paras(paras)
     model.set_eval()
     model.set_device("cuda:0")
@@ -107,7 +107,7 @@ if __name__ == '__main__':
     gt_fp_bbox = list_of_tensor_2_tensor(gt_fp_bbox)
     gen_fp_bbox = list_of_tensor_2_tensor(gen_fp_bbox)
 
-    for i in range(5, 7):
+    for i in range(0, 100):
         # print(gen_input[i])
         # print(gt_fp_bbox[i])
         # print(gen_fp_bbox[i])
