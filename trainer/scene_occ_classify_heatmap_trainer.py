@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch
 from torchvision import transforms
 from utils.loss import CustomLoss
+from tensorboardX import SummaryWriter
 
 class SceneOccClassifyHeatmapTrainer(TrainerBase):
     def __init__(self, config):
@@ -11,8 +12,10 @@ class SceneOccClassifyHeatmapTrainer(TrainerBase):
         self.optimizer_config = config['optimizer']
         self.device = torch.device(config['device'])
         self.loss_func = CustomLoss(config['loss_function'])
+        self.tensorboard_out_path = config['tensorboard_out_path']
         self.optimizer = None
         self.data_loader = None
+        
         pass
 
     def set_optimizer(self, optimizer_config):
@@ -27,6 +30,7 @@ class SceneOccClassifyHeatmapTrainer(TrainerBase):
         self.model.set_device(self.device)
         self.loss_func.to(self.device)
         self.data_loader = self.dataset.get_data_loader()
+        writer = SummaryWriter(log_dir=self.tensorboard_out_path)
 
         # Training Loop
         self.global_step = 0
@@ -49,6 +53,10 @@ class SceneOccClassifyHeatmapTrainer(TrainerBase):
 
                 loss.backward()
                 self.optimizer.step()
+
+                writer.add_scalar("loss_all", loss, self.global_step)
+                writer.add_scalar("cls", loss, self.global_step)
+                writer.add_scalar("loc", loss, self.global_step)
 
                 print(
                         f'Epoch: [{epoch + 1:0>{len(str(epoch))}}/{self.max_epoch}]',

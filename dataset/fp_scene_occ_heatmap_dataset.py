@@ -24,14 +24,20 @@ class FpSceneOccHeatmapDataset(DatasetBase):
         self._num_workers = config['paras']['num_workers']
         self._shuffle = config['paras']['shuffle']
         self._geometry = config['paras']['geometry']
+        # 均值和方差
+        self.target_mean = np.array([0.008, 0.001, 0.202, 0.2, 0.43, 1.368])
+        self.target_std_dev = np.array([0.866, 0.5, 0.954, 0.668, 0.09, 0.111])
         
-        occ_file = os.path.join(self._data_root, "easy_scene_temp.pkl")
-        with open(occ_file, 'rb') as f:
-            self._occ = pickle.load(f)
+        self._occ = []
+        for i in range(8):
+            occ_file = os.path.join(self._data_root, "easy_scene_%d.pkl" %i)
+            with open(occ_file, 'rb') as f:
+                occ_split = pickle.load(f)
+                self._occ.extend(occ_split)
+
         heatmap_file = os.path.join(self._data_root, "GTheatmap_aug.pkl")
         with open(heatmap_file, 'rb') as f:
-            self._heatmap = pickle.load(f)[7000:7481]
-        print("Dataset不全，目前只有7000-7481")
+            self._heatmap = pickle.load(f)
         
         exp_name = config['paras']['exp_name_root']
         matching_name = os.path.join(exp_name, 'gt_dt_matching_res.pkl')
@@ -68,19 +74,19 @@ class FpSceneOccHeatmapDataset(DatasetBase):
         #x, y, w, l, yaw = self.interpret_kitti_label(bbox)
         
         bev_corners = np.zeros((4, 2), dtype=np.float32)
-        # front left
+        # rear left
         bev_corners[0, 0] = x - l/2 * np.cos(yaw) - w/2 * np.sin(yaw)
         bev_corners[0, 1] = y - l/2 * np.sin(yaw) + w/2 * np.cos(yaw)
 
-        # rear left
+        # rear right
         bev_corners[1, 0] = x - l/2 * np.cos(yaw) + w/2 * np.sin(yaw)
         bev_corners[1, 1] = y - l/2 * np.sin(yaw) - w/2 * np.cos(yaw)
 
-        # rear right
+        # front right
         bev_corners[2, 0] = x + l/2 * np.cos(yaw) + w/2 * np.sin(yaw)
         bev_corners[2, 1] = y + l/2 * np.sin(yaw) - w/2 * np.cos(yaw)
 
-        # front right
+        # front left
         bev_corners[3, 0] = x + l/2 * np.cos(yaw) - w/2 * np.sin(yaw)
         bev_corners[3, 1] = y + l/2 * np.sin(yaw) + w/2 * np.cos(yaw)
 
@@ -247,6 +253,7 @@ class FpSceneOccHeatmapDataset(DatasetBase):
 
         for i in range(len(dt_bboxes)):     # 处理一个检测框
             if i not in matching_index:     # 判断是否为FP
+            # if i in matching_index:     # 判断是否为FP
                 if scores[i] >= 0.3:
                     x = dt_bboxes[i][0]
                     y = dt_bboxes[i][1]
@@ -260,6 +267,18 @@ class FpSceneOccHeatmapDataset(DatasetBase):
 
         return label_map, label_list
 
+    def reg_target_transform(self, label_map):
+        '''
+        Inputs are numpy arrays (not tensors!)
+        :param label_map: [352 * 400 * 7] label tensor
+        :return: normalized regression map for all non_zero classification locations
+        '''
+        cls_map = label_map[..., 0]
+        reg_map = label_map[..., 1:]
+
+        index = np.nonzero(cls_map)
+        reg_map[index] = (reg_map[index] - self.target_mean)/self.target_std_dev
+
     def __getitem__(self, index):
         assert index <= self.__len__()
 
@@ -267,6 +286,7 @@ class FpSceneOccHeatmapDataset(DatasetBase):
         occlusion = self.get_occlusion(index)
         heatmap = self.get_heatmap(index)
         label_map, _ = self.get_label(index)
+        # self.reg_target_transform(label_map)
 
         data_dict = {
             'occupancy': occupancy,

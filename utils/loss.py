@@ -33,7 +33,7 @@ class CustomLoss(nn.Module):
         return loss.mean()
 
     def cross_entropy(self, x, y):
-        return F.binary_cross_entropy(input=x, target=y, reduction='elementwise_mean')
+        return F.binary_cross_entropy(input=x, target=y, reduction='mean')
 
 
     def forward(self, preds, targets):
@@ -51,7 +51,10 @@ class CustomLoss(nn.Module):
         batch_size = targets.size(0)
         image_size = targets.size(2) * targets.size(3)
         cls_targets, loc_targets = targets.split([1, 6], dim=1)
-        cls_preds, loc_preds = preds.split([1, 6], dim=1)
+        if preds.size(1) == 7:
+            cls_preds, loc_preds = preds.split([1, 6], dim=1)
+        elif preds.size(1) == 15:
+            cls_preds, loc_preds, _ = preds.split([1, 6, 8], dim=1)
         ################################################################
         # cls_preds = torch.clamp(cls_preds, min=1e-5, max=1-1e-5)
         # cls_loss = self.focal_loss(cls_preds, cls_targets) * self.alpha
