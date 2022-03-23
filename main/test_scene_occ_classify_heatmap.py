@@ -54,14 +54,17 @@ def eval_one(model, loss_func, config, loader, image_id, device, plot=False, ver
     num_gt = len(label_list)
     num_pred = len(scores)
 
-    input = torch.split(input, 1, dim=0)[1]     # [0]为occupancy，[1]为occlusion
-    input_np = input.cpu().permute(1, 2, 0).numpy()
-    pred_image = get_bev(input_np, corners)
+    input_1 = torch.split(input, 1, dim=0)[0]     # [0]为occupancy，[1]为occlusion
+    input_np_1 = input_1.cpu().permute(1, 2, 0).numpy()
+    input_2 = torch.split(input, 1, dim=0)[1] 
+    input_np_2 = input_2.cpu().permute(1, 2, 0).numpy() 
+    pred_image = get_bev(input_np_2, corners)
 
     if plot == True:
         # Visualization
-        plot_bev(input_np, label_list, window_name='GT')
-        plot_bev(input_np, corners, window_name='Prediction')
+        plot_bev(input_np_2, label_list, window_name='GT')
+        plot_bev(input_np_2, corners, window_name='Prediction1')
+        plot_bev(input_np_1, corners, window_name='Prediction2')
         plot_label_map(cls_pred.cpu().numpy())
 
     return num_gt, num_pred, scores, pred_image, pred_match, loss.item(), t_forward, t_post
@@ -142,15 +145,16 @@ if __name__ == '__main__':
 
     with torch.no_grad():
         # Eval one pic
-        num_gt, num_pred, scores, pred_image, pred_match, loss, t_forward, t_nms = \
-        eval_one(model, loss_func, config.testing_config, data_loader, image_id=4, device="cuda", plot=True)
+        for id in range (0,1):
+            num_gt, num_pred, scores, pred_image, pred_match, loss, t_forward, t_nms = \
+            eval_one(model, loss_func, config.testing_config, data_loader, image_id=id, device="cuda", plot=True)
 
-        TP = (pred_match != -1).sum()
-        print("Loss: {:.4f}".format(loss))
-        print("Precision: {:.2f}".format(TP/num_pred))
-        print("Recall: {:.2f}".format(TP/num_gt))
-        print("forward pass time {:.3f}s".format(t_forward))
-        print("nms time {:.3f}s".format(t_nms))
+            TP = (pred_match != -1).sum()
+            print("Loss: {:.4f}".format(loss))
+            print("Precision: {:.2f}".format(TP/num_pred))
+            print("Recall: {:.2f}".format(TP/num_gt))
+            print("forward pass time {:.3f}s".format(t_forward))
+            print("nms time {:.3f}s".format(t_nms))
 
         # # Eval all
         # metrics, precisions, recalls, log_images = eval_dataset(config.testing_config, model, loss_func, data_loader, device="cuda", e_range='all')

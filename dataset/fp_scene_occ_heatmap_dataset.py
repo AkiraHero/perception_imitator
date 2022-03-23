@@ -1,3 +1,5 @@
+import sys
+sys.path.append('D:/1Pjlab/ADModel_Pro/')
 import pickle
 import torch
 import os
@@ -6,6 +8,8 @@ from dataset.dataset_base import DatasetBase
 import numpy as np
 from torch.utils.data import DataLoader
 from collections import defaultdict
+from utils.preprocess import two_points_2_line, two_points_distance, euclidean_distance
+import shapely.geometry
 
 '''
 Dataset for easy scene expression loading
@@ -29,7 +33,7 @@ class FpSceneOccHeatmapDataset(DatasetBase):
         self.target_std_dev = np.array([0.866, 0.5, 0.954, 0.668, 0.09, 0.111])
         
         self._occ = []
-        for i in range(8):
+        for i in range(1):
             occ_file = os.path.join(self._data_root, "easy_scene_%d.pkl" %i)
             with open(occ_file, 'rb') as f:
                 occ_split = pickle.load(f)
@@ -37,7 +41,7 @@ class FpSceneOccHeatmapDataset(DatasetBase):
 
         heatmap_file = os.path.join(self._data_root, "GTheatmap_aug.pkl")
         with open(heatmap_file, 'rb') as f:
-            self._heatmap = pickle.load(f)
+            self._heatmap = pickle.load(f)[0:1000]
         
         exp_name = config['paras']['exp_name_root']
         matching_name = os.path.join(exp_name, 'gt_dt_matching_res.pkl')
@@ -238,6 +242,146 @@ class FpSceneOccHeatmapDataset(DatasetBase):
 
     def get_occlusion(self, idx):
         return self._occ[idx]['occlusion']
+    
+    def get_occupancy_and_occlusion(self, idx):
+        gt_annos = self._gt_dt_matching_res['gt_annos']
+        gt_bboxes = gt_annos[idx]['gt_boxes_lidar']    # 获取当前Lidar id下的gt检测框
+
+        pic_height, pic_width = self._geometry['label_shape'][:2]
+        ratio = self._geometry['ratio']
+
+        img_cam_pos = [pic_height, pic_width/2]
+        occupancy = np.zeros([pic_height, pic_width]).astype('int32')
+        occlusion = np.ones([pic_height, pic_width]).astype('int32')
+
+        all_gt_min_x, all_gt_max_x, all_gt_min_y, all_gt_max_y  = [352, 0, 400, 0]
+        all_gt_poly = shapely.geometry.Polygon()
+
+        for one_gtbbox in gt_bboxes:
+            # 高长宽
+            lidar_x = one_gtbbox[0]
+            lidar_y = one_gtbbox[1]
+            lidar_l = one_gtbbox[3]
+            lidar_w = one_gtbbox[4]
+            theta = one_gtbbox[6]
+
+            # 调整坐标到图片坐标系
+            img_x, img_y = self.transform_metric2label(np.array([[lidar_x, lidar_y]]))[0].astype('int32')
+            img_l = lidar_l / ratio
+            img_w = lidar_w / ratio
+
+            # get occupancy
+            # 初步筛选，减小计算算量
+            pass_size = int(np.ceil(0.5*math.sqrt(img_l**2 + img_w**2)))
+
+            pix_x_min = max(0, img_x - pass_size)
+            pix_x_max = min(pic_height, img_x + pass_size)
+            pix_y_min = max(0, img_y - pass_size)
+            pix_y_max = min(pic_width, img_y + pass_size)
+
+            for pix_x in range(pix_x_min, pix_x_max):
+                for pix_y in range(pix_y_min, pix_y_max):
+                    w_dis = euclidean_distance(np.tan(theta + math.pi), img_y - np.tan(theta + math.pi)*img_x, [pix_x, pix_y])
+                    l_dis = euclidean_distance(-1/np.tan(theta + math.pi), img_y + 1/np.tan(theta + math.pi)*img_x, [pix_x, pix_y])  
+
+                    if w_dis <= img_w / 2 and l_dis <= img_l / 2:
+                        occupancy[pix_x, pix_y] = 1  
+
+            # get occlusion
+            corners, _ = self.get_corners([lidar_x, lidar_y, lidar_l, lidar_w, theta])
+            label_corners = self.transform_metric2label(corners)
+
+            k_list = []
+            b_list = [] 
+            dist_list = []
+            intersection_points = []
+            
+            if (label_corners < 0).sum() > 0:
+                continue
+            min_x = max(min(label_corners[:, 0]), 0)
+            max_x = min(max(label_corners[:, 0]), 352)
+            min_y = max(min(label_corners[:, 1]), 0)
+            max_y = min(max(label_corners[:, 1]), 400)
+
+            for i in range(label_corners.shape[0]):
+                # 需要截断超出bev视图的部分
+                label_corners[i][0] = max(0, label_corners[i][0])  
+                label_corners[i][0] = min(352, label_corners[i][0])
+                label_corners[i][1] = max(0, label_corners[i][1])  
+                label_corners[i][1] = min(400, label_corners[i][1])
+
+                k, b = two_points_2_line(label_corners[i], img_cam_pos)
+                dist = two_points_distance(label_corners[i], img_cam_pos)
+
+                if k != float("-inf") and  k != float("inf"): 
+                    if b < 0:
+                        interp_y = 0
+                        interp_x = - b / k
+                    elif b >= 400:
+                        interp_y = 400
+                        interp_x = (interp_y - b) / k
+                    else:
+                        interp_x = 0
+                        interp_y = b
+                else:
+                    if label_corners[i][1] <= 200:
+                        b = -1
+                        interp_x = 352
+                        interp_y = 0
+                    else:
+                        b =400 + 1
+                        interp_x = 352
+                        interp_y = 400
+
+                interp = (interp_x, interp_y)
+
+                min_x = min(min_x, interp_x)
+                max_x = max(max_x, interp_x)
+                min_y = min(min_y, interp_y)
+                max_y = max(max_y, interp_y)
+
+                k_list.append(k)
+                b_list.append(b)
+                dist_list.append(dist)
+                intersection_points.append(interp)
+
+            min_dist_index = dist_list.index(min(dist_list))
+
+            for i in range(0, 3):
+                if i >= min_dist_index:
+                    if (b_list[i+1] < 0 and 0 <= b_list[min_dist_index] < 400) or (b_list[min_dist_index] < 0 and 0 <= b_list[i+1] < 400):
+                        all_gt_poly = all_gt_poly.union(shapely.geometry.Polygon([label_corners[i+1], label_corners[min_dist_index], intersection_points[min_dist_index], (0,0), intersection_points[i+1]]))
+                    elif (b_list[i+1] >= 400 and 0 <= b_list[min_dist_index] < 400) or (b_list[min_dist_index] >= 400 and 0 <= b_list[i+1] < 400):
+                        all_gt_poly = all_gt_poly.union(shapely.geometry.Polygon([label_corners[i+1], label_corners[min_dist_index], intersection_points[min_dist_index], (0,400), intersection_points[i+1]]))
+                    elif b_list[i+1] >= 400 and b_list[min_dist_index] < 0:
+                        all_gt_poly = all_gt_poly.union(shapely.geometry.Polygon([label_corners[i+1], label_corners[min_dist_index], intersection_points[min_dist_index], (0,0), (0,400), intersection_points[i+1]]))
+                    elif b_list[min_dist_index] >= 400 and b_list[i+1] < 0:
+                        all_gt_poly = all_gt_poly.union(shapely.geometry.Polygon([label_corners[i+1], label_corners[min_dist_index], intersection_points[min_dist_index], (0,400), (0,0), intersection_points[i+1]]))
+                    else:
+                        all_gt_poly = all_gt_poly.union(shapely.geometry.Polygon([label_corners[i+1], label_corners[min_dist_index], intersection_points[min_dist_index], intersection_points[i+1]]))
+                else:
+                    if (b_list[i] < 0 and 0 <= b_list[min_dist_index] < 400) or (b_list[min_dist_index] < 0 and 0 <= b_list[i] < 400):
+                        all_gt_poly = all_gt_poly.union(shapely.geometry.Polygon([label_corners[i], label_corners[min_dist_index], intersection_points[min_dist_index], (0,0), intersection_points[i]]))
+                    elif (b_list[i] >= 400 and 0 <= b_list[min_dist_index] < 400) or (b_list[min_dist_index] >= 400 and 0 <= b_list[i] < 400):
+                        all_gt_poly = all_gt_poly.union(shapely.geometry.Polygon([label_corners[i], label_corners[min_dist_index], intersection_points[min_dist_index], (0,400), intersection_points[i]]))
+                    elif b_list[i] >= 400 and b_list[min_dist_index] < 0:
+                        all_gt_poly = all_gt_poly.union(shapely.geometry.Polygon([label_corners[i], label_corners[min_dist_index], intersection_points[min_dist_index], (0,0), (0,400), intersection_points[i]]))
+                    elif b_list[min_dist_index] >= 400 and b_list[i] < 0:
+                        all_gt_poly = all_gt_poly.union(shapely.geometry.Polygon([label_corners[i], label_corners[min_dist_index], intersection_points[min_dist_index], (0,400), (0,0), intersection_points[i]]))
+                    else:
+                        all_gt_poly = all_gt_poly.union(shapely.geometry.Polygon([label_corners[i], label_corners[min_dist_index], intersection_points[min_dist_index], intersection_points[i]]))
+
+            all_gt_min_x = int(min(all_gt_min_x, min_x))
+            all_gt_max_x = int(max(all_gt_max_x, max_x))
+            all_gt_min_y = int(min(all_gt_min_y, min_y))
+            all_gt_max_y = int(max(all_gt_max_y, max_y))
+
+        for x in range(all_gt_min_x, all_gt_max_x):
+            for y in range(all_gt_min_y, all_gt_max_y):
+                point = shapely.geometry.Point(x, y)
+                if all_gt_poly.intersects(point):
+                    occlusion[x][y] = 0
+        return occupancy, occlusion
 
     def get_heatmap(self, idx):
         return self._heatmap[idx]['gt_heatmap'] / 255
@@ -283,7 +427,8 @@ class FpSceneOccHeatmapDataset(DatasetBase):
         assert index <= self.__len__()
 
         occupancy = self.get_occupancy(index)
-        occlusion = self.get_occlusion(index)
+        # occlusion = self.get_occlusion(index)   # 直接使用pkl文件获取occ，方便调试；实际的推理过程中，没有预先处理好的occ，需要对GTbbox进行预处理获取
+        occupancy, occlusion = self.get_occupancy_and_occlusion(index)       # 实际的推理过程中，使用该方法
         heatmap = self.get_heatmap(index)
         label_map, _ = self.get_label(index)
         # self.reg_target_transform(label_map)

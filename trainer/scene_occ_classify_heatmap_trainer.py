@@ -55,8 +55,8 @@ class SceneOccClassifyHeatmapTrainer(TrainerBase):
                 self.optimizer.step()
 
                 writer.add_scalar("loss_all", loss, self.global_step)
-                writer.add_scalar("cls", loss, self.global_step)
-                writer.add_scalar("loc", loss, self.global_step)
+                writer.add_scalar("cls", cls, self.global_step)
+                writer.add_scalar("loc", loc, self.global_step)
 
                 print(
                         f'Epoch: [{epoch + 1:0>{len(str(epoch))}}/{self.max_epoch}]',
