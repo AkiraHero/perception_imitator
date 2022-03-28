@@ -134,7 +134,7 @@ if __name__ == '__main__':
     model = ModelFactory.get_model(config.model_config)
     loss_func = CustomLoss(config.training_config['loss_function'])
 
-    paras = torch.load("D:/1Pjlab/ADModel_Pro/output/scene_occ_heatmap/400.pt")
+    paras = torch.load("D:/1Pjlab/ADModel_Pro/output/scene_occ_fp_distribution/400.pt")
     model.load_model_paras(paras)
     model.set_decode(True)
     model.set_eval()
@@ -147,7 +147,7 @@ if __name__ == '__main__':
         # Eval one pic
         for id in range (0,1):
             num_gt, num_pred, scores, pred_image, pred_match, loss, t_forward, t_nms = \
-            eval_one(model, loss_func, config.testing_config, data_loader, image_id=id, device="cuda", plot=True)
+            eval_one(model, loss_func, config, data_loader, image_id=id, device="cuda", plot=True)
 
             TP = (pred_match != -1).sum()
             print("Loss: {:.4f}".format(loss))
@@ -157,6 +157,6 @@ if __name__ == '__main__':
             print("nms time {:.3f}s".format(t_nms))
 
         # # Eval all
-        # metrics, precisions, recalls, log_images = eval_dataset(config.testing_config, model, loss_func, data_loader, device="cuda", e_range='all')
+        # metrics, precisions, recalls, log_images = eval_dataset(config, model, loss_func, data_loader, device="cuda", e_range='all')
         # print(metrics)
          

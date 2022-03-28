@@ -174,6 +174,7 @@ if __name__ == '__main__':
 
     proc_fp_mean = [[] for _ in range(len(all_exp_fp[0]))]
     proc_fp_var = [[] for _ in range(len(all_exp_fp[0]))]
+    proc_num = [[] for _ in range(len(all_exp_fp[0]))]      # 记录每个FP组内有多少个FP
     proc_score = [[] for _ in range(len(all_exp_fp[0]))]
 
     for exp_id in range(len(all_exp_fp)):   # 每次将之气那汇总的中的FP数据和当前exp_id和中的FP数据
@@ -229,13 +230,15 @@ if __name__ == '__main__':
             proc_fp_mean[img_id].append(np.mean(proc_fp[img_id][fp_id], axis=0))
             proc_fp_var[img_id].append(np.var(proc_fp[img_id][fp_id], axis=0))
 
+            proc_num[img_id].append(len(proc_fp[img_id][fp_id]))
             proc_score[img_id].append(proc_score_add[img_id][fp_id] / len(proc_fp[img_id][fp_id]))
 
     print(len(proc_fp_mean))
     print(len(proc_fp_var))
+    print(len(proc_num))
     print(len(proc_score))
 
-    save_pkl = {'fp_mean': proc_fp_mean, 'fp_var': proc_fp_var, 'fp_score': proc_score}
+    save_pkl = {'fp_mean': proc_fp_mean, 'fp_var': proc_fp_var, 'fp_num': proc_num, 'fp_score': proc_score}
     
     with open("C:/Users/Sunyyyy/Desktop/Study/PJLAB/Code/ADModel_Pro/data/fp_distribution.pkl", "wb") as f:
         pickle.dump(save_pkl, f)

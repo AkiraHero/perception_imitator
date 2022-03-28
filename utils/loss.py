@@ -50,11 +50,19 @@ class CustomLoss(nn.Module):
 
         batch_size = targets.size(0)
         image_size = targets.size(2) * targets.size(3)
-        cls_targets, loc_targets = targets.split([1, 6], dim=1)
-        if preds.size(1) == 7:
+        if targets.size(1) == 7:  # no_distribution
+            cls_targets, loc_targets = targets.split([1, 6], dim=1)
+        elif targets.size(1) == 12:  # distribution
+            cls_targets, loc_targets = targets.split([1, 11], dim=1)
+
+        if preds.size(1) == 7:  # no_distribution
             cls_preds, loc_preds = preds.split([1, 6], dim=1)
-        elif preds.size(1) == 15:
+        elif preds.size(1) == 15:   # no_distribution下经过Decoder（7+8）
             cls_preds, loc_preds, _ = preds.split([1, 6, 8], dim=1)
+        elif preds.size(1) == 12:   # distribution
+            cls_preds, loc_preds = preds.split([1, 11], dim=1)
+        elif preds.size(1) == 20:   # distribution下经过Decoder（12+8）
+            cls_preds, loc_preds, _ = preds.split([1, 11, 8], dim=1)
         ################################################################
         # cls_preds = torch.clamp(cls_preds, min=1e-5, max=1-1e-5)
         # cls_loss = self.focal_loss(cls_preds, cls_targets) * self.alpha

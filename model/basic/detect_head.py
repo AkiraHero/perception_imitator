@@ -9,6 +9,8 @@ class DetectHead(ModelBase):
         super(DetectHead, self).__init__()
         self._input_size = config['paras']['input_size']
         self._mid_layer_num = config['paras']['mid_layer_num']
+        self._cls_channel = config['paras']['cls_channel']
+        self._reg_channel = config['paras']['reg_channel']
 
         self.upsample = nn.Sequential(     # 192*H/4*W/4 -> 64*H*W
             nn.ConvTranspose2d(in_channels=self._input_size[0], out_channels=self._mid_layer_num, kernel_size=3, stride=2, padding=1, output_padding=1),
@@ -19,8 +21,8 @@ class DetectHead(ModelBase):
             nn.ReLU()
         )
 
-        self.clshead = nn.Conv2d(in_channels=self._mid_layer_num, out_channels=1, kernel_size=1)
-        self.reghead = nn.Conv2d(in_channels=self._mid_layer_num, out_channels=6, kernel_size=1)
+        self.clshead = nn.Conv2d(in_channels=self._mid_layer_num, out_channels=self._cls_channel, kernel_size=1)
+        self.reghead = nn.Conv2d(in_channels=self._mid_layer_num, out_channels=self._reg_channel, kernel_size=1)
 
     def forward(self, x):
         x = self.upsample(x)

@@ -1,5 +1,5 @@
 dataset:
-  config_file: dataset/scene_occ_heatmap.yaml
+  config_file: dataset/scene_occ_fp_distribution.yaml
   dataset_class: FpSceneOccHeatmapDataset
 logging:
   ckpt_eph_interval: 50

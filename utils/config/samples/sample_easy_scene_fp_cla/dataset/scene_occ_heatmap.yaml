@@ -6,6 +6,7 @@ paras:
   for_train: True
   num_workers: 4
   shuffle: True
+  FP_distribution: True
   geometry:
     L1: -40
     L2: 40
@@ -14,5 +15,4 @@ paras:
     label_shape:
     - 352
     - 400
-    - 7
     ratio: 0.2

@@ -1,4 +1,5 @@
 import pickle
+from matplotlib.style import use
 import torch
 import os
 import math
@@ -26,6 +27,7 @@ class FpSceneOccHeatmapDataset(DatasetBase):
         self._num_workers = config['paras']['num_workers']
         self._shuffle = config['paras']['shuffle']
         self._geometry = config['paras']['geometry']
+        self._distribution_setting = config['paras']['FP_distribution']
         # 均值和方差
         self.target_mean = np.array([0.008, 0.001, 0.202, 0.2, 0.43, 1.368])
         self.target_std_dev = np.array([0.866, 0.5, 0.954, 0.668, 0.09, 0.111])
@@ -45,9 +47,14 @@ class FpSceneOccHeatmapDataset(DatasetBase):
         matching_name = os.path.join(exp_name, 'gt_dt_matching_res.pkl')
         result_name = os.path.join(exp_name, 'result.pkl')
         with open(matching_name, 'rb') as f:
-            self._gt_dt_matching_res = pickle.load(f)
+            self._gt_dt_matching_res = pickle.load(f)   # 存储了真值
         with open(result_name, 'rb') as f:
-            self._result = pickle.load(f)
+            self._result = pickle.load(f)   # self._gt_dt_matching_res和self._result可以获取一次实验中的FP数据
+
+        if self._distribution_setting == True:
+            fp_distribution_name = os.path.join(self._data_root, "fp_distribution.pkl")     # 存储的是所有实验得到FP的各个参数的均值和方差
+            with open(fp_distribution_name, 'rb') as f:
+                self._fp_distribution = pickle.load(f)   # 存储的是所有实验得到FP的各个参数的均值和方差
 
     def get_data_loader(self, distributed=False):
         return DataLoader(
@@ -71,9 +78,13 @@ class FpSceneOccHeatmapDataset(DatasetBase):
         }
         return d[clss]
 
-    def get_corners(self, bbox):
-        x, y, l, w, yaw = bbox        
-        #x, y, w, l, yaw = self.interpret_kitti_label(bbox)
+    def get_corners(self, bbox, use_distribution):
+        if  use_distribution == True:
+            x, y, l, w, yaw, x_var, y_var, l_var, w_var, yaw_var = bbox
+            reg_target = [np.cos(yaw), np.sin(yaw), x, y, w, l, yaw_var, x_var, y_var, w_var, l_var]
+        else:
+            x, y, l, w, yaw = bbox 
+            reg_target = [np.cos(yaw), np.sin(yaw), x, y, w, l]
         
         bev_corners = np.zeros((4, 2), dtype=np.float32)
         # rear left
@@ -91,8 +102,6 @@ class FpSceneOccHeatmapDataset(DatasetBase):
         # front left
         bev_corners[3, 0] = x + l/2 * np.cos(yaw) - w/2 * np.sin(yaw)
         bev_corners[3, 1] = y + l/2 * np.sin(yaw) + w/2 * np.cos(yaw)
-
-        reg_target = [np.cos(yaw), np.sin(yaw), x, y, w, l]
 
         return bev_corners, reg_target
 
@@ -229,11 +238,15 @@ class FpSceneOccHeatmapDataset(DatasetBase):
             actual_reg_target = np.copy(reg_target)
             actual_reg_target[2] = reg_target[2] - metric_x
             actual_reg_target[3] = reg_target[3] - metric_y
-            actual_reg_target[4] = np.log(reg_target[4])
-            actual_reg_target[5] = np.log(reg_target[5])
+            for i in range(4, len(reg_target)):
+                actual_reg_target[i] = np.log(reg_target[i]) 
+
 
             map[label_x, label_y, 0] = 1.0
-            map[label_x, label_y, 1:7] = actual_reg_target
+            if self._distribution_setting == True:
+                map[label_x, label_y, 1:12] = actual_reg_target
+            else:
+                map[label_x, label_y, 1:7] = actual_reg_target
 
     def get_occupancy(self, idx):
         return self._occ[idx]['occupancy']
@@ -283,7 +296,7 @@ class FpSceneOccHeatmapDataset(DatasetBase):
                         occupancy[pix_x, pix_y] = 1  
 
             # get occlusion
-            corners, _ = self.get_corners([lidar_x, lidar_y, lidar_l, lidar_w, theta])
+            corners, _ = self.get_corners([lidar_x, lidar_y, lidar_l, lidar_w, theta], use_distribution=False)
             label_corners = self.transform_metric2label(corners)
 
             k_list = []
@@ -369,26 +382,53 @@ class FpSceneOccHeatmapDataset(DatasetBase):
         return self._heatmap[idx]['gt_heatmap'] / 255
 
     def get_label(self, idx):
-        label_map = np.zeros(self._geometry['label_shape'], dtype=np.float32)
+        if self._distribution_setting == True:
+            label_map = np.zeros((self._geometry['label_shape'][0], self._geometry['label_shape'][1], 12), dtype=np.float32)
+        else:
+            label_map = np.zeros((self._geometry['label_shape'][0], self._geometry['label_shape'][1], 7), dtype=np.float32)
         label_list = []
 
-        assert len(self._result) == len(self._gt_dt_matching_res['bev'])
-        dt_bboxes = self._result[idx]['boxes_lidar']   # id帧下的所有检测框
-        scores = self._result[idx]['score']    # id帧下的所有检测框得分
-        matching_index = self._gt_dt_matching_res['bev'][idx]
+        if self._distribution_setting == True:
+            fp_bboxes = self._fp_distribution['fp_mean'][idx]   # 将均值作为期望的被检测框参数
+            fp_var = self._fp_distribution['fp_var'][idx]
+            fp_num = self._fp_distribution['fp_num'][idx]       # 用于筛选，总共392次实验，认为这一组中FP数量少于5的不作为FP
+            scores = self._fp_distribution['fp_score'][idx]
 
-        for i in range(len(dt_bboxes)):     # 处理一个检测框
-            if i not in matching_index:     # 判断是否为FP
-                if scores[i] >= 0.3:
-                    x = dt_bboxes[i][0]
-                    y = dt_bboxes[i][1]
-                    l = dt_bboxes[i][3]
-                    w = dt_bboxes[i][4]
-                    yaw = dt_bboxes[i][6]
+            for i in range(len(fp_bboxes)):     # 处理一个FP框
+                if fp_num[i] >= 5 and scores[i] >= 0.3:
+                    x = fp_bboxes[i][0]
+                    y = fp_bboxes[i][1]
+                    l = fp_bboxes[i][3]
+                    w = fp_bboxes[i][4]
+                    yaw = fp_bboxes[i][6]
 
-                    corners, reg_target = self.get_corners([x, y, l, w, yaw])
+                    x_var = fp_var[i][0]
+                    y_var = fp_var[i][1]
+                    l_var = fp_var[i][3]
+                    w_var = fp_var[i][4]
+                    yaw_var = fp_var[i][6]
+
+                    corners, reg_target = self.get_corners([x, y, l, w, yaw, x_var, y_var, l_var, w_var, yaw_var], use_distribution=True)
                     self.update_label_map(label_map, corners, reg_target)
                     label_list.append(corners)
+        else:
+            assert len(self._result) == len(self._gt_dt_matching_res['bev'])
+            dt_bboxes = self._result[idx]['boxes_lidar']   # id帧下的所有检测框
+            scores = self._result[idx]['score']    # id帧下的所有检测框得分
+            matching_index = self._gt_dt_matching_res['bev'][idx]
+
+            for i in range(len(dt_bboxes)):     # 处理一个检测框
+                if i not in matching_index:     # 判断是否为FP
+                    if scores[i] >= 0.3:
+                        x = dt_bboxes[i][0]
+                        y = dt_bboxes[i][1]
+                        l = dt_bboxes[i][3]
+                        w = dt_bboxes[i][4]
+                        yaw = dt_bboxes[i][6]
+
+                        corners, reg_target = self.get_corners([x, y, l, w, yaw], use_distribution=False)
+                        self.update_label_map(label_map, corners, reg_target)
+                        label_list.append(corners)
 
         return label_map, label_list
 
@@ -406,13 +446,14 @@ class FpSceneOccHeatmapDataset(DatasetBase):
 
     def __getitem__(self, index):
         assert index <= self.__len__()
+        heatmap = self.get_heatmap(index)
+
+        label_map, _ = self.get_label(index)
+        # self.reg_target_transform(label_map)
 
         # occupancy = self.get_occupancy(index)
         # occlusion = self.get_occlusion(index)   # 直接使用pkl文件获取occ，方便调试；实际的推理过程中，没有预先处理好的occ，需要对GTbbox进行预处理获取
         occupancy, occlusion = self.get_occupancy_and_occlusion(index)       # 实际的推理过程中，使用该方法
-        heatmap = self.get_heatmap(index)
-        label_map, _ = self.get_label(index)
-        # self.reg_target_transform(label_map)
 
         data_dict = {
             'occupancy': occupancy,

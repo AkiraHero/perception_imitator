@@ -104,7 +104,7 @@ def filter_pred(config, pred):
             raise ValueError("Tensor dimension is not right")
 
     cls_pred = pred[0, ...]
-    activation = cls_pred > config['cls_threshold']
+    activation = cls_pred > config.testing_config['cls_threshold']
     num_boxes = int(activation.sum())
 
     if num_boxes == 0:
@@ -112,13 +112,17 @@ def filter_pred(config, pred):
         return [], []
 
     corners = torch.zeros((num_boxes, 8))
-    for i in range(7, 15):
-        corners[:, i - 7] = torch.masked_select(pred[i, ...], activation)
+    if config.dataset_config['FP_distribution'] == True:
+        for i in range(12, 20):
+            corners[:, i - 12] = torch.masked_select(pred[i, ...], activation)
+    else:
+        for i in range(7, 15):
+            corners[:, i - 7] = torch.masked_select(pred[i, ...], activation)
     corners = corners.view(-1, 4, 2).numpy()
     scores = torch.masked_select(cls_pred, activation).cpu().numpy()
 
     # NMS
-    selected_ids = non_max_suppression(corners, scores, config['nms_iou_threshold'])
+    selected_ids = non_max_suppression(corners, scores, config.testing_config['nms_iou_threshold'])
     corners = corners[selected_ids]
     scores = scores[selected_ids]
 
