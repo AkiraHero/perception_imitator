@@ -1,10 +1,10 @@
 dataset:
-  config_file: dataset/scene_occ_fp_distribution.yaml
+  config_file: dataset/scene_occ_heatmap.yaml
   dataset_class: FpSceneOccHeatmapDataset
 logging:
   ckpt_eph_interval: 50
   path: ./output/log
-  suffix: 'fp_scene_occ_heatmap'
+  suffix: 'fp_scene_occ_fp_distribution'
 model:
   config_file: model/multi_scale_cnn_cls.yaml
   model_class: MultiScaleCNNCls
