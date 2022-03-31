@@ -395,7 +395,7 @@ class FpSceneOccHeatmapDataset(DatasetBase):
             scores = self._fp_distribution['fp_score'][idx]
 
             for i in range(len(fp_bboxes)):     # 处理一个FP框
-                if fp_num[i] >= 5 and scores[i] >= 0.3:
+                if fp_num[i] >= 50 and scores[i] >= 0.3:
                     x = fp_bboxes[i][0]
                     y = fp_bboxes[i][1]
                     l = fp_bboxes[i][3]

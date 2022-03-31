@@ -2,6 +2,33 @@ import numpy as np
 import torch
 from shapely.geometry import Polygon
 
+def find_disc(will_find_dist, find_keys):    # will_find_dist要查找的字典，find_keys要查找的keys
+    
+    value_found = []
+    if(isinstance(will_find_dist, (list))):  # 含有列表的值处理
+        if (len(will_find_dist)>0):
+            for now_dist in will_find_dist:
+                found = find_disc(now_dist, find_keys)
+                if(found):
+                    value_found.extend(found)
+            return value_found
+                
+            
+    if(not isinstance(will_find_dist, (dict))):  # 没有字典类型的了
+        return 0
+    
+    else:#查找下一层
+        dict_key = will_find_dist.keys()
+        #print (dict_key)
+        for i in dict_key:
+            if(i == find_keys):
+                value_found.append(will_find_dist[i])
+            found = find_disc(will_find_dist[i], find_keys)
+            if(found):
+                value_found.extend(found)
+            
+        return value_found
+
 def convert_format(boxes_array):
     """
 
@@ -112,7 +139,7 @@ def filter_pred(config, pred):
         return [], []
 
     corners = torch.zeros((num_boxes, 8))
-    if config.dataset_config['FP_distribution'] == True:
+    if find_disc(config.dataset_config, 'FP_distribution')[0] == True:
         for i in range(12, 20):
             corners[:, i - 12] = torch.masked_select(pred[i, ...], activation)
     else:

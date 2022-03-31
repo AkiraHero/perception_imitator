@@ -13,8 +13,8 @@ training:
   epoch: 100
   loss_function:
     num_classes: 1
-    alpha: 1.0
-    beta: 0.1
+    alpha: 2.0
+    beta: 0.01
   optimizer:
     paras:
       lr: 0.001

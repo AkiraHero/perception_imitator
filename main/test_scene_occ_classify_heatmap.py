@@ -134,7 +134,8 @@ if __name__ == '__main__':
     model = ModelFactory.get_model(config.model_config)
     loss_func = CustomLoss(config.training_config['loss_function'])
 
-    paras = torch.load("D:/1Pjlab/ADModel_Pro/output/scene_occ_fp_distribution/400.pt")
+    paras = torch.load("D:/1Pjlab/ADModel_Pro/output/scene_occ_fp_distribution/60.pt")
+    # paras = torch.load("D:/1Pjlab/ADModel_Pro/output/scene_occ_heatmap/400.pt")
     model.load_model_paras(paras)
     model.set_decode(True)
     model.set_eval()
