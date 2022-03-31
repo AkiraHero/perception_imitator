@@ -68,7 +68,7 @@ class SceneOccClassifyHeatmapTrainer(TrainerBase):
  
             if epoch % 2 == 0:
                 torch.save(self.model.state_dict(), \
-                            'D:/1Pjlab/ADModel_Pro/output/scene_occ_fp_distribution/' + str(epoch) + ".pt")
+                            'D:/1Pjlab/ADModel_Pro/output/scene_occ_tpfp_distribution/' + str(epoch) + ".pt")
 
 
 
