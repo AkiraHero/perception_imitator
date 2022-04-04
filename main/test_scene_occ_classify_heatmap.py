@@ -1,5 +1,6 @@
+import os
 import sys
-sys.path.append('D:/1Pjlab/ADModel_Pro/')
+sys.path.append(os.getcwd())
 import torch
 from torch.multiprocessing import Pool
 import pandas as pd

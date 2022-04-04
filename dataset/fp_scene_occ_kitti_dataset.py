@@ -487,10 +487,10 @@ class FpSceneOccHeatmapDataset(DatasetBase):
         for key, val in data_dict.items():
             try:
                 if key in ['occupancy', 'occlusion', 'heatmap', 'label_map']:
-                    heatmaps = []
-                    for heatmap in val:
-                        heatmaps.append(heatmap)
-                    ret[key] = np.stack(heatmaps, axis=0)
+                    values = []
+                    for value in val:
+                        values.append(value)
+                    ret[key] = np.stack(values, axis=0)
                 else:
                     ret[key] = np.stack(val, axis=0)
             except:

@@ -1,0 +1,9 @@
+name: MultiScaleCNNCls
+paras:
+  submodules:
+    backbone:
+      config_file: model/multi_scale_cnn.yaml
+      model_class: MultiScaleCNN
+    head:
+      config_file: model/detect_head.yaml
+      model_class: DetectHead

@@ -4,6 +4,7 @@ import torch
 from torchvision import transforms
 from utils.loss import CustomLoss
 from tensorboardX import SummaryWriter
+import matplotlib.pyplot as plt
 
 class SceneOccClassifyHeatmapTrainer(TrainerBase):
     def __init__(self, config):
@@ -45,6 +46,8 @@ class SceneOccClassifyHeatmapTrainer(TrainerBase):
 
                 occupancy = data['occupancy'].unsqueeze(1)
                 occlusion = data['occlusion'].unsqueeze(1)
+                HDmap = data['HDmap']
+
                 label_map = data['label_map'].permute(0, 3, 1, 2)
                 
                 input = torch.cat((occupancy, occlusion), dim=1)    # 将场景描述共同输入
