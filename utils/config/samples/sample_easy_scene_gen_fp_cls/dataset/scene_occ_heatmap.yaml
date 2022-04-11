@@ -1,0 +1,18 @@
+dataset_class: FpSceneOccHeatmapDataset
+paras:
+  batch_size: 8
+  data_root: D:/1Pjlab/ADModel_Pro/data
+  exp_name_root: D:/1Pjlab/Datasets/kitti-pvrcnn-epch8369-392dropout/default/dropout-iter-0-20211211-140118
+  for_train: True
+  num_workers: 4
+  shuffle: True
+  FP_distribution: True
+  geometry:
+    L1: -40
+    L2: 40
+    W1: 0.0
+    W2: 70.4
+    label_shape:
+    - 352
+    - 400
+    ratio: 0.2
