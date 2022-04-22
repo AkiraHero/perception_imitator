@@ -19,8 +19,9 @@ training:
     paras:
       lr: 0.001
     type: Adam
-  trainer_class: SceneOccClassifyHeatmapTrainer
+  trainer_class: BaselineTrainer
   tensorboard_out_path: default
+  FP_distribution: False
 testing:
   cls_threshold: 0.05
   nms_iou_threshold: 0.1

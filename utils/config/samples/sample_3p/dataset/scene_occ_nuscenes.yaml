@@ -1,7 +1,7 @@
 dataset_class: FpSceneOccNuScenesDataset
 paras:
   nuscenes_type: v1.0-mini
-  batch_size: 1
+  batch_size: 4
   data_root: D:/1Pjlab/ADModel_Pro/data
   for_train: True
   num_workers: 1

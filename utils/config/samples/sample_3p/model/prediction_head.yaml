@@ -1,0 +1,11 @@
+name: mlp
+paras:
+  input_size: 192
+  layer_act_func:
+  - relu
+  - relu
+  - none
+  layer_node_num:
+  - 1024
+  - 512
+  - 12

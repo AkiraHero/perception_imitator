@@ -93,6 +93,7 @@ class MultiScaleCNNCls(ModelBase):
         super(MultiScaleCNNCls, self).__init__()
         self.backbone = ModelFactory.ModelFactory.get_model(config['paras']['submodules']['backbone'])
         self.head = ModelFactory.ModelFactory.get_model(config['paras']['submodules']['head'])
+        self.prediction = ModelFactory.ModelFactory.get_model(config['paras']['submodules']['prediction'])
         
         self.geom = [-40, 40, 0.0, 70.4]
         self.ratio = 0.2
@@ -126,4 +127,4 @@ class MultiScaleCNNCls(ModelBase):
         else:
             pred = torch.cat([cls, reg], dim=1)
 
-        return pred
+        return pred, features

@@ -5,5 +5,8 @@ paras:
       config_file: model/multi_scale_cnn.yaml
       model_class: MultiScaleCNN
     head:
-      config_file: model/detect_head.yaml
+      config_file: model/perception_head.yaml
       model_class: DetectHead
+    prediction:
+      config_file: model/prediction_head.yaml
+      model_class: MLP

@@ -51,7 +51,7 @@ class SceneOccClassifyHeatmapTrainer(TrainerBase):
                 label_map = data['label_map'].permute(0, 3, 1, 2)
                 
                 input = torch.cat((occupancy, occlusion), dim=1)    # 将场景描述共同输入
-                pred = self.model(input)
+                pred, _ = self.model(input)
                 loss, cls, loc = self.loss_func(pred, label_map)
 
                 loss.backward()
