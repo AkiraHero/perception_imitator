@@ -1,4 +1,4 @@
 name: multi_scale_cnn
 paras:
-  input_channel: 2
+  input_channel: 5
   one_feature_channel: 64

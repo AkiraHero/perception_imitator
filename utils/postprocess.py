@@ -234,8 +234,8 @@ def compute_matches(gt_boxes,
 
     # Loop through predictions and find matching ground truth boxes
     match_count = 0
-    pred_match = -1 * np.ones([pred_boxes.shape[0]])
-    gt_match = -1 * np.ones([gt_boxes.shape[0]])
+    pred_match = -1 * np.ones([pred_boxes.shape[0]], dtype=int)
+    gt_match = -1 * np.ones([gt_boxes.shape[0]], dtype=int)
     for i in range(len(pred_boxes)):
         # Find best matching ground truth box
         # 1. Sort matches by score

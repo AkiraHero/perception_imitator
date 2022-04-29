@@ -6,4 +6,4 @@ paras:
   - 100
   mid_layer_num: 64
   cls_channel: 1
-  reg_channel: 11
+  reg_channel: 6

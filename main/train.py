@@ -12,6 +12,8 @@ from factory.trainer_factory import TrainerFactory
 from utils.logger.basic_logger import BasicLogger
 from utils.logger.mute_logger import MuteLogger
 
+import warnings
+warnings.filterwarnings("ignore")
 
 def sigint_handler(sig, frm):
     print("You kill the program.")
@@ -32,7 +34,7 @@ if __name__ == '__main__':
     try:
         # manage config
         logging_logger = logging.getLogger()
-        logging_logger.setLevel(logging.NOTSET)
+        logging_logger.setLevel(logging.ERROR)
         ch = logging.StreamHandler()
         formatter = logging.Formatter('%(asctime)s [%(levelname)s] %(name)s: %(message)s')
         ch.setFormatter(formatter)

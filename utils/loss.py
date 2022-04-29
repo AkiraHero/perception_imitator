@@ -113,7 +113,7 @@ class CustomLoss(nn.Module):
                 loss = cls_loss
         
         #print(cls, loc)
-        return loss, cls, loc
+        return loss, cls, loc, cls_loss
 
 
 class SmoothL1Loss(nn.Module):
@@ -121,8 +121,8 @@ class SmoothL1Loss(nn.Module):
         super(SmoothL1Loss, self).__init__()
         pass
 
-    def forward(self, preds, targets, match_list):
-        total_num = 1   # 暂时设定为1，具体为match_list中匹配到的总个数
+    def forward(self, preds, targets):
+        total_num = preds.shape[0]   # 暂时设定为1，具体为match_list中匹配到的总个数
         
         if total_num > 0:
             loss = F.smooth_l1_loss(preds, targets, reduction='sum') / total_num

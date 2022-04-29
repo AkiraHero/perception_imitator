@@ -1,10 +1,10 @@
 dataset_class: FpSceneOccNuScenesDataset
 paras:
   nuscenes_type: v1.0-mini
-  batch_size: 4
+  batch_size: 8
   data_root: D:/1Pjlab/ADModel_Pro/data
   for_train: True
-  num_workers: 1
+  num_workers: 8
   shuffle: True
   FP_distribution: False
   geometry:
@@ -16,3 +16,6 @@ paras:
     - 352
     - 400
     ratio: 0.2
+  waypoints_std:
+    car: 40
+    pedestrian: 1

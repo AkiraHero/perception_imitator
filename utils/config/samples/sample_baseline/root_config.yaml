@@ -4,7 +4,7 @@ dataset:
 logging:
   ckpt_eph_interval: 50
   path: ./output/log
-  suffix: 'fp_scene_occ_nuscenes'
+  suffix: 'baseline'
 model:
   config_file: model/multi_scale_cnn_cls.yaml
   model_class: MultiScaleCNNCls

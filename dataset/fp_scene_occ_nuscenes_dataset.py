@@ -44,9 +44,8 @@ class FpSceneOccNuScenesDataset(DatasetBase):
         self._nuscenes_type = config['paras']['nuscenes_type']
         self._geometry = config['paras']['geometry']
         self._distribution_setting = config['paras']['FP_distribution']
-        # 均值和方差
-        self.target_mean = np.array([0.008, 0.001, 0.202, 0.2, 0.43, 1.368])
-        self.target_std_dev = np.array([0.866, 0.5, 0.954, 0.668, 0.09, 0.111])
+        self._car_std = config['paras']['waypoints_std']['car']
+        self._pedestrian_std = config['paras']['waypoints_std']['pedestrian']
 
         
         # self._occ = []
@@ -58,8 +57,10 @@ class FpSceneOccNuScenesDataset(DatasetBase):
         
         self._nuscenes = NuScenes(self._nuscenes_type, dataroot=os.path.join(self._data_root, "nuscenes"), verbose=False)
         self._helper = PredictHelper(self._nuscenes)
-        
-        self._train_set = get_prediction_challenge_split("mini_train", dataroot=os.path.join(self._data_root, "nuscenes"))
+
+        gt_file = os.path.join(self._data_root, "mini_sim_model_gt.pkl")
+        with open(gt_file, 'rb') as f:
+            self._gt = pickle.load(f)   # 加载target detection model和target prediction model下的真值
 
         # if self._distribution_setting == True:
         #     fp_distribution_name = os.path.join(self._data_root, "fp_distribution.pkl")     # 存储的是所有实验得到FP的各个参数的均值和方差
@@ -114,6 +115,25 @@ class FpSceneOccNuScenesDataset(DatasetBase):
         bev_corners[3, 1] = y + l/2 * np.sin(yaw) + w/2 * np.cos(yaw)
 
         return bev_corners, reg_target
+
+    def transform_gobal2metric(self, ann_translation, ann_rotation, calib_data, ego_data):
+        # global frame
+        center = np.array(ann_translation)
+        orientation = np.array(ann_rotation)
+        # 从global frame转换到ego vehicle frame
+        quaternion = Quaternion(ego_data['rotation']).inverse
+        center -= np.array(ego_data['translation'])
+        center = np.dot(quaternion.rotation_matrix, center)
+        orientation = quaternion * orientation
+        # 从ego vehicle frame转换到sensor frame
+        quaternion = Quaternion(calib_data['rotation']).inverse
+        center -= np.array(calib_data['translation'])
+        center = np.dot(quaternion.rotation_matrix, center)
+        orientation = quaternion * orientation
+        v = np.dot(orientation.rotation_matrix, np.array([1, 0, 0]))
+        yaw = np.arctan2(v[1], v[0])
+
+        return center, yaw
 
     def transform_metric2label(self, metric, ratio=0.2, base_height=352, base_width=200):
         '''
@@ -258,7 +278,7 @@ class FpSceneOccNuScenesDataset(DatasetBase):
                 map[label_x, label_y, 1:7] = actual_reg_target
     
     def get_sample_egopose_calib_token(self, idx):
-        _, sample_token = self._train_set[idx].split("_")
+        sample_token = list(self._gt.keys())[idx]
 
         sample = self._nuscenes.get('sample', sample_token)
         lidar_top_data = self._nuscenes.get('sample_data', sample['data']['LIDAR_TOP']) 
@@ -287,25 +307,11 @@ class FpSceneOccNuScenesDataset(DatasetBase):
         ego_data = self._nuscenes.get('ego_pose', ego_pose_token)
 
         # 对sample中的每个annotation进行坐标变换(global -> lidar)
-        for annotation in sample_annotation:    
+        for annotation in sample_annotation:
             anno_token = annotation['token']
             ann = self._nuscenes.get('sample_annotation', anno_token)
-            # global frame
-            center = np.array(ann['translation'])
-            orientation = np.array(ann['rotation'])
-            # 从global frame转换到ego vehicle frame
-            quaternion = Quaternion(ego_data['rotation']).inverse
-            center -= np.array(ego_data['translation'])
-            center = np.dot(quaternion.rotation_matrix, center)
-            orientation = quaternion * orientation
-            # 从ego vehicle frame转换到sensor frame
-            quaternion = Quaternion(calib_data['rotation']).inverse
-            center -= np.array(calib_data['translation'])
-            center = np.dot(quaternion.rotation_matrix, center)
-            orientation = quaternion * orientation
-            v = np.dot(orientation.rotation_matrix, np.array([1, 0, 0]))
-            yaw = np.arctan2(v[1], v[0])
-
+            center, yaw = self.transform_gobal2metric(ann['translation'], ann['rotation'], calib_data, ego_data)
+    
             ############################
             # First stage: get occupancy
             ############################
@@ -444,8 +450,11 @@ class FpSceneOccNuScenesDataset(DatasetBase):
         else:
             label_map = np.zeros((self._geometry['label_shape'][0], self._geometry['label_shape'][1], 7), dtype=np.float32)
         label_list = []
+        all_future_waypoints = []
+        all_future_waypoints_st = []
 
-        if self._distribution_setting == True:
+        ### 此部分暂未适应target_dt & target_pred数据集###
+        if self._distribution_setting == True:  
             fp_bboxes = self._fp_distribution['fp_mean'][idx]   # 将均值作为期望的被检测框参数
             fp_var = self._fp_distribution['fp_var'][idx]
             fp_num = self._fp_distribution['fp_num'][idx]       # 用于筛选，总共392次实验，认为这一组中FP数量少于5的不作为FP
@@ -468,26 +477,68 @@ class FpSceneOccNuScenesDataset(DatasetBase):
                     corners, reg_target = self.get_corners([x, y, l, w, yaw, x_var, y_var, l_var, w_var, yaw_var], use_distribution=True)
                     self.update_label_map(label_map, corners, reg_target)
                     label_list.append(corners)
+        #####################################################
+
         else:
-            assert len(self._result) == len(self._gt_dt_matching_res['bev'])
-            dt_bboxes = self._result[idx]['boxes_lidar']   # id帧下的所有检测框
-            scores = self._result[idx]['score']    # id帧下的所有检测框得分
-            matching_index = self._gt_dt_matching_res['bev'][idx]
+            sample_token, ego_pose_token, calib_token  = self.get_sample_egopose_calib_token(idx)
 
-            for i in range(len(dt_bboxes)):     # 处理一个检测框
-                if i not in matching_index:     # 判断是否为FP
-                    if scores[i] >= 0.3:
-                        x = dt_bboxes[i][0]
-                        y = dt_bboxes[i][1]
-                        l = dt_bboxes[i][3]
-                        w = dt_bboxes[i][4]
-                        yaw = dt_bboxes[i][6]
+            all_gt_data = self._gt[sample_token]
+            calib_data = self._nuscenes.get('calibrated_sensor', calib_token)        
+            ego_data = self._nuscenes.get('ego_pose', ego_pose_token)
 
-                        corners, reg_target = self.get_corners([x, y, l, w, yaw], use_distribution=False)
-                        self.update_label_map(label_map, corners, reg_target)
-                        label_list.append(corners)
+            for gt_data in all_gt_data:
+                det_data = gt_data["detection"]
+                pred_data = gt_data["prediction"]
+                if det_data['detection_score'] >= 0.1:
+                    # Step 1: 获取lidar坐标系下的检测结果，分为训练所用的label_map和测试所用label_list
+                    center, yaw = self.transform_gobal2metric(det_data['translation'], det_data['rotation'], calib_data, ego_data)
 
-        return label_map, label_list
+                    x = center[1]
+                    y = - center[0]
+                    l = np.array(det_data['size'])[0]
+                    w = np.array(det_data['size'])[1]
+                    theta = yaw
+
+                    # Step 2:获取雷达坐标系下的预测结果
+                    global_waypoints = pred_data['future_waypoints']
+                    global_waypoints = np.insert(global_waypoints, 2, values=0, axis=1)
+                    lidar_waypoints = []
+                    lidar_waypoints_st = [] # 存储标准化结果
+                    for i in range(global_waypoints.shape[0]):
+                        center, _ = self.transform_gobal2metric(global_waypoints[i], np.zeros(4), calib_data, ego_data)
+                        lidar_waypoints.append([center[1], - center[0]])
+                        
+                        # 在lidar视图上对轨迹点进行标准化，以当前位置为mean
+                        if det_data['detection_name'] == 'car':         # 针对car类别，std选40
+                            lidar_waypoints_st.append([(center[1] - x)/self._car_std, (- center[0] - y)/self._car_std])
+                        else:                                           # 针对pedestrian类别，std选1
+                            lidar_waypoints_st.append([(center[1] - x)/self._pedestrian_std, (- center[0] - y)/self._pedestrian_std])
+                    lidar_waypoints = np.array(lidar_waypoints)
+                    lidar_waypoints_st = np.array(lidar_waypoints_st)
+
+                    # 进行筛选
+                    if x < self._geometry['W1'] or x > self._geometry['W2'] or y < self._geometry['L1'] or y > self._geometry['L2'] :
+                        continue    # 由于在目前检测结果是在范围 [-51.2, -51.2, -5.0, 51.2, 51.2, 3.0]下进行的，因此需要筛选
+                    if abs(lidar_waypoints[1][0] - lidar_waypoints[0][0]) > 10 or abs(lidar_waypoints[1][1] - lidar_waypoints[0][1]) > 10:
+                        continue    # 速度在x或y分量上超过20m/s(10m/0.5s)则被筛掉
+
+                    # 整理获取label
+                    corners, reg_target = self.get_corners([x, y, l, w, theta], use_distribution=False)
+                    self.update_label_map(label_map, corners, reg_target)
+                    label_list.append(corners)
+                    all_future_waypoints.append(lidar_waypoints)
+                    all_future_waypoints_st.append(lidar_waypoints_st)
+
+            if len(all_future_waypoints) != 0:
+                future_waypoints = np.stack(all_future_waypoints, axis=0)
+                future_waypoints_st = np.stack(all_future_waypoints_st, axis=0)
+            else:
+                future_waypoints = np.array([])
+                future_waypoints_st = np.array([])
+
+        assert len(label_list) == future_waypoints.shape[0]         # label_list应该和future_waypoints一一对应
+
+        return label_map, label_list, future_waypoints, future_waypoints_st
 
     def reg_target_transform(self, label_map):
         '''
@@ -502,26 +553,26 @@ class FpSceneOccNuScenesDataset(DatasetBase):
         reg_map[index] = (reg_map[index] - self.target_mean)/self.target_std_dev
 
     def __getitem__(self, index):
-        assert index <= self.__len__()   
+        assert index <= self.__len__()
 
         HD_map = self.get_HDmap(index)   # 此处index定义随意定义
-
-        # label_map, _ = self.get_label(index)
-        # self.reg_target_transform(label_map)
-
-        occupancy, occlusion = self.get_occupancy_and_occlusion(index)       # 实际的推理过程中，使用该方法
+        occupancy, occlusion = self.get_occupancy_and_occlusion(index)       # 实际的推理过程中，使用该方法 
+        label_map, label_list, future_waypoints, future_waypoints_st = self.get_label(index)
 
         data_dict = {
             'occupancy': occupancy,
             'occlusion': occlusion,
             'HDmap': HD_map,
-            # 'label_map': label_map
+            'label_map': label_map,
+            'label_list': label_list,
+            'future_waypoints': future_waypoints,
+            'future_waypoints_st': future_waypoints_st
         }
 
         return data_dict
 
     def __len__(self):
-        return len(self._train_set)
+        return len(self._gt)
 
     @staticmethod
     def load_data_to_gpu(batch_dict):
@@ -547,6 +598,11 @@ class FpSceneOccNuScenesDataset(DatasetBase):
                     for value in val:
                         values.append(value)
                     ret[key] = np.stack(values, axis=0)
+                elif key in ['label_list', 'future_waypoints', 'future_waypoints_st']:
+                    values = []
+                    for value in val:
+                        values.append(value)
+                    ret[key] = values
                 else:
                     ret[key] = np.stack(val, axis=0)
             except:

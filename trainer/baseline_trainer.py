@@ -1,3 +1,4 @@
+from tkinter import N
 from trainer.trainer_base import TrainerBase
 import torch.nn as nn
 import torch
@@ -7,7 +8,7 @@ from utils.loss import CustomLoss, SmoothL1Loss
 from tensorboardX import SummaryWriter
 import matplotlib.pyplot as plt
 
-from utils.postprocess import non_max_suppression
+from utils.postprocess import non_max_suppression, compute_matches
 
 class BaselineTrainer(TrainerBase):
     def __init__(self, config):
@@ -24,15 +25,15 @@ class BaselineTrainer(TrainerBase):
         
         pass
 
-    def train_filter_pred(self, pred):
+    def train_filter_pred(self, pred, decoded_pred):
         if len(pred.size()) == 4:
             if pred.size(0) == 1:
-                pred.squeeze_(0)
+                pred = pred.squeeze(0)
             else:
                 raise ValueError("Tensor dimension is not right")
 
         cls_pred = pred[0, ...]
-        activation = cls_pred > 0.1     # cls阈值
+        activation = cls_pred > 0.2     # cls阈值
         num_boxes = int(activation.sum())
 
         if num_boxes == 0:
@@ -40,33 +41,32 @@ class BaselineTrainer(TrainerBase):
             return [], []
 
         corners = torch.zeros((num_boxes, 8))
-        if self.data_distributed == True:
-            for i in range(12, 20):
-                corners[:, i - 12] = torch.masked_select(pred[i, ...], activation)
-        else:
-            for i in range(7, 15):
-                corners[:, i - 7] = torch.masked_select(pred[i, ...], activation)
+        for i in range(0, 8):
+            corners[:, i] = torch.masked_select(decoded_pred[i, ...], activation)
         corners = corners.view(-1, 4, 2).numpy()
         scores = torch.masked_select(cls_pred, activation).cpu().numpy()
 
         # NMS
-        selected_ids = non_max_suppression(corners, scores, 0.2)        # iou阈值
+        selected_ids = non_max_suppression(corners, scores, 0.3)        # iou阈值
         corners = corners[selected_ids]
         scores = scores[selected_ids]
 
         return corners, scores
 
-    def get_batch_actor_features_and_match_list(self, pred, features):
+    def get_batch_actor_features_and_match_list(self, pred, decoded_pred, features, label_list):
         pred_match_list = []
         for batch_id in range(pred.shape[0]):
-            per_pred = pred[batch_id].squeeze_(0)
+            per_pred = pred[batch_id].squeeze(0)
+            per_decoded_pred = decoded_pred[batch_id].squeeze(0)
+            per_label_list = label_list[batch_id]
 
             # Filter Predictions
-            corners, scores = self.train_filter_pred(per_pred)
+            corners, scores = self.train_filter_pred(per_pred, per_decoded_pred)
 
-            # gt_boxes = np.array(label_list)       # 暂时还未写label_list的获取，后续需要用到pred_match用于轨迹匹配
-            # gt_match, pred_match, overlaps = compute_matches(gt_boxes,
-            #                                     corners, scores, iou_threshold=0.5)
+            gt_boxes = np.array(per_label_list)
+            gt_match, pred_match, overlaps = compute_matches(gt_boxes,
+                                                corners, scores, iou_threshold=0.5)                               
+            pred_match_list.append(list(pred_match))
 
             if len(corners) == 0:
                 pass
@@ -74,8 +74,8 @@ class BaselineTrainer(TrainerBase):
                 box_centers = np.mean(corners, axis=1)
 
                 center_index = - box_centers / 0.2      # 0.2为resolution
-                center_index[:, 0] += input.shape[-2]
-                center_index[:, 1] += input.shape[-1] / 2
+                center_index[:, 0] += pred.shape[-2]
+                center_index[:, 1] += pred.shape[-1] / 2
                 center_index = np.round(center_index / 4).astype(int)        # 4为input_size/feature_size
 
                 center_index = np.swapaxes(center_index, 1, 0)
@@ -87,7 +87,6 @@ class BaselineTrainer(TrainerBase):
                 else:
                     batch_actor_features = torch.cat((batch_actor_features, per_actor_features), 0)
 
-                ######### !!!!还需要加入pred_match的列表用于匹配真值
         if 'batch_actor_features' not in locals().keys():   # 说明该batch中没有检测出任何物体
             return None, None
         else:
@@ -121,32 +120,50 @@ class BaselineTrainer(TrainerBase):
 
                 occupancy = data['occupancy'].unsqueeze(1)
                 occlusion = data['occlusion'].unsqueeze(1)
-                HDmap = data['HDmap']
-
+                HDmap = data['HDmap'].permute(0, 3, 1, 2)
                 label_map = data['label_map'].permute(0, 3, 1, 2)
-                
+                label_list = data['label_list']
+                waypoints = data['future_waypoints_st']
+
                 ####################
                 # Train perception #
                 ####################
-                input = torch.cat((occupancy, occlusion), dim=1)    # 将场景描述共同输入
+                input = torch.cat((occupancy, occlusion, HDmap), dim=1)    # 将场景描述共同输入
                 pred, features = self.model(input)
-                perc_loss, cls, loc = self.perception_loss_func(pred, label_map)
+                perc_loss, cls, loc, cls_loss = self.perception_loss_func(pred, label_map)
 
                 ####################
                 # Train pridiction #
                 ####################
-                batch_actor_features, pred_match_list = self.get_batch_actor_features_and_match_list(pred, features)
+                decoded_pred = self.model.corner_decoder(pred.detach_()[:, 1:,...])     # 将pred_map解码为可获取corner的形式
+                batch_actor_features, pred_match_list = self.get_batch_actor_features_and_match_list(pred.detach_(), decoded_pred, features.detach_(), label_list)
 
-                if batch_actor_features == None:
-                    # loss = perc_loss
-                    pass
+                if pred_match_list == None or np.array(np.concatenate(pred_match_list, axis=0) >= 0).sum()==0:    # 检测结果未匹配上GT
+                    if epoch < 3:   # 为了助于收敛，前三轮只对cls分支进行参数回传
+                        loss = cls_loss
+                    else:
+                        loss = perc_loss
+                    pred_loss = np.NaN
                 else:
-                    way_points = self.model.prediction(batch_actor_features)    # 生成6个点的waypoints(6*2)
-                    gt_way_points = ###########
-                    pred_loss = self.prediction_loss_func(way_points, gt_way_points, pred_match_list)
-                    print(pred_loss.item())
+                    pred_mask = np.array(np.concatenate(pred_match_list, axis=0) >= 0)      # 匹配上GT的mask
 
-                loss = perc_loss + pred_loss
+                    filter_batch_actor_features = batch_actor_features[pred_mask]           # 只对匹配上GT的检测框中心点处的特征进行预测
+                    pred_way_points = self.model.prediction(filter_batch_actor_features)    # 预测6个点的waypoints(6*2)
+
+                    gt_way_points = []   # 根据匹配结果获取对应的真值
+                    for batch_id, one_match_list in enumerate(pred_match_list):
+                        if len(one_match_list) == 0:
+                            continue
+                        index = [i for i in one_match_list if i >= 0]
+                        one_gt_way_points = waypoints[batch_id][index]
+
+                        gt_way_points.append(one_gt_way_points)
+                    
+                    gt_way_points = torch.tensor(np.concatenate(gt_way_points, axis=0), dtype=torch.float32).view(-1, 12).cuda()
+
+                    pred_loss = self.prediction_loss_func(pred_way_points, gt_way_points)
+                    loss = perc_loss + pred_loss
+
                 loss.backward()
                 self.optimizer.step()
 
@@ -166,7 +183,7 @@ class BaselineTrainer(TrainerBase):
                         f'Loss-Prediction: {pred_loss:.4f}',
                     )
 
-            if epoch % 2 == 0:
+            if epoch % 5 == 0:
                 torch.save(self.model.state_dict(), \
                             'D:/1Pjlab/ADModel_Pro/output/baseline/' + str(epoch) + ".pt")
 
