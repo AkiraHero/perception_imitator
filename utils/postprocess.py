@@ -1,3 +1,4 @@
+from operator import gt
 import numpy as np
 import torch
 from shapely.geometry import Polygon
@@ -261,3 +262,32 @@ def compute_matches(gt_boxes,
                 break
 
     return gt_match, pred_match, overlaps
+
+def compute_ADE(gts, preds):
+    if len(gts) == 0:
+        return None
+
+    all_ADE = 0
+    for i in range(len(gts)):
+        one_ADE = 0
+        for j in range(len(gts[-1])):
+            dis = np.linalg.norm(gts[i][j] - preds[i][j])
+            one_ADE = one_ADE + dis
+        all_ADE = all_ADE + one_ADE
+
+    ADE = all_ADE / len(gts)
+
+    return ADE
+
+def compute_FDE(gts, preds):
+    if len(gts) == 0:
+        return None
+
+    all_FDE = 0
+    for i in range(len(gts)):
+        one_FDE = np.linalg.norm(gts[i][-1] - preds[i][-1])
+        all_FDE = all_FDE + one_FDE
+
+    FDE = all_FDE / len(gts)
+
+    return FDE

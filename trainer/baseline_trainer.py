@@ -79,6 +79,8 @@ class BaselineTrainer(TrainerBase):
                 center_index = np.round(center_index / 4).astype(int)        # 4为input_size/feature_size
 
                 center_index = np.swapaxes(center_index, 1, 0)
+                center_index[0] = np.clip(center_index[0], 0, features.shape[-2] - 1)
+                center_index[1] = np.clip(center_index[1], 0, features.shape[-1] - 1)
 
                 per_actor_features = features[batch_id, :, center_index[0], center_index[1]].permute(1, 0)
 
@@ -152,9 +154,9 @@ class BaselineTrainer(TrainerBase):
 
                     gt_way_points = []   # 根据匹配结果获取对应的真值
                     for batch_id, one_match_list in enumerate(pred_match_list):
-                        if len(one_match_list) == 0:
-                            continue
                         index = [i for i in one_match_list if i >= 0]
+                        if len(index) == 0:
+                            continue
                         one_gt_way_points = waypoints[batch_id][index]
 
                         gt_way_points.append(one_gt_way_points)

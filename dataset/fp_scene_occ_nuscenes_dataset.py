@@ -1,4 +1,5 @@
 from cProfile import label
+from cmath import pi
 from optparse import Values
 import pickle
 from matplotlib.style import use
@@ -131,7 +132,7 @@ class FpSceneOccNuScenesDataset(DatasetBase):
         center = np.dot(quaternion.rotation_matrix, center)
         orientation = quaternion * orientation
         v = np.dot(orientation.rotation_matrix, np.array([1, 0, 0]))
-        yaw = np.arctan2(v[1], v[0])
+        yaw = np.arctan2(v[1], v[0]) - math.pi / 2
 
         return center, yaw
 
@@ -317,8 +318,8 @@ class FpSceneOccNuScenesDataset(DatasetBase):
             ############################
             lidar_x = center[1]
             lidar_y = - center[0]
-            lidar_l = np.array(ann['size'])[0]
-            lidar_w = np.array(ann['size'])[1]
+            lidar_l = np.array(ann['size'])[1]
+            lidar_w = np.array(ann['size'])[0]
             theta = yaw
 
             # 调整坐标到图片坐标系
@@ -495,8 +496,8 @@ class FpSceneOccNuScenesDataset(DatasetBase):
 
                     x = center[1]
                     y = - center[0]
-                    l = np.array(det_data['size'])[0]
-                    w = np.array(det_data['size'])[1]
+                    l = np.array(det_data['size'])[1]
+                    w = np.array(det_data['size'])[0]
                     theta = yaw
 
                     # Step 2:获取雷达坐标系下的预测结果
