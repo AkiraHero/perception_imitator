@@ -56,7 +56,7 @@ class FpSceneOccNuScenesDataset(DatasetBase):
         #         occ_split = pickle.load(f)
         #         self._occ.extend(occ_split)
         
-        self._nuscenes = NuScenes(self._nuscenes_type, dataroot=os.path.join(self._data_root, "nuscenes"), verbose=False)
+        self._nuscenes = NuScenes(self._nuscenes_type, dataroot="D:/PJLAB_Experiment/Data/nuScenes", verbose=False)
         self._helper = PredictHelper(self._nuscenes)
 
         gt_file = os.path.join(self._data_root, "mini_sim_model_gt.pkl")
@@ -490,6 +490,8 @@ class FpSceneOccNuScenesDataset(DatasetBase):
             for gt_data in all_gt_data:
                 det_data = gt_data["detection"]
                 pred_data = gt_data["prediction"]
+                if det_data['detection_name'] != 'car': 
+                    continue
                 if det_data['detection_score'] >= 0.1:
                     # Step 1: 获取lidar坐标系下的检测结果，分为训练所用的label_map和测试所用label_list
                     center, yaw = self.transform_gobal2metric(det_data['translation'], det_data['rotation'], calib_data, ego_data)

@@ -55,6 +55,7 @@ class BaselineTrainer(TrainerBase):
 
     def get_batch_actor_features_and_match_list(self, pred, decoded_pred, features, label_list):
         pred_match_list = []
+        aug_pred_match_list = []
         for batch_id in range(pred.shape[0]):
             per_pred = pred[batch_id].squeeze(0)
             per_decoded_pred = decoded_pred[batch_id].squeeze(0)
@@ -68,31 +69,69 @@ class BaselineTrainer(TrainerBase):
                                                 corners, scores, iou_threshold=0.5)                               
             pred_match_list.append(list(pred_match))
 
-            if len(corners) == 0:
-                pass
+        ##################
+        ### No Augment ###
+        ##################
+        #     if len(corners) == 0:
+        #         pass
+        #     else:
+        #         box_centers = np.mean(corners, axis=1)
+
+        #         center_index = - box_centers / 0.2      # 0.2为resolution
+        #         center_index[:, 0] += pred.shape[-2]
+        #         center_index[:, 1] += pred.shape[-1] / 2
+        #         center_index = np.round(center_index / 4).astype(int)        # 4为input_size/feature_size，将坐标从原图转为特征图
+
+        #         center_index = np.swapaxes(center_index, 1, 0)
+        #         center_index[0] = np.clip(center_index[0], 0, features.shape[-2] - 1)
+        #         center_index[1] = np.clip(center_index[1], 0, features.shape[-1] - 1)
+
+        #         per_actor_features = features[batch_id, :, center_index[0], center_index[1]].permute(1, 0)
+
+        #         if 'batch_actor_features' not in locals().keys():
+        #             batch_actor_features = per_actor_features
+        #         else:
+        #             batch_actor_features = torch.cat((batch_actor_features, per_actor_features), 0)
+
+        # if 'batch_actor_features' not in locals().keys():   # 说明该batch中没有检测出任何物体
+        #     return None, None
+        # else:
+        #     return batch_actor_features, pred_match_list
+
+        ###############
+        ### Augment ###
+        ###############
+            aug_pred_match = []
+            aug_per_actor_features = []
+            
+            for idx, corner in enumerate(corners):
+                label_corner = self.dataset.transform_metric2label(corner)
+                feature_corner = np.round(label_corner / 4).astype(int)
+                points = self.dataset.get_points_in_a_rotated_box(feature_corner, list(features.shape[-2:]))
+                aug_pred_match.extend(len(points) * [pred_match[idx]])
+
+                for p in points:        # 将特征图中bbox围住的每一个点都作为正样本
+                    label_x = min(p[0], features.shape[-2] - 1)
+                    label_y = min(p[1], features.shape[-1] - 1)
+                    per_actor_feature = features[batch_id, :, label_x, label_y][None,None,:]
+                    aug_per_actor_feature = nn.functional.interpolate(per_actor_feature, size=256, mode='linear').squeeze(0)
+
+                    aug_per_actor_features.append(aug_per_actor_feature)
+                
+            aug_per_actor_features = torch.cat(aug_per_actor_features, dim=0)
+            if 'aug_batch_actor_features' not in locals().keys():
+                aug_batch_actor_features = aug_per_actor_features
             else:
-                box_centers = np.mean(corners, axis=1)
+                aug_batch_actor_features = torch.cat((aug_batch_actor_features, aug_per_actor_features), 0)
 
-                center_index = - box_centers / 0.2      # 0.2为resolution
-                center_index[:, 0] += pred.shape[-2]
-                center_index[:, 1] += pred.shape[-1] / 2
-                center_index = np.round(center_index / 4).astype(int)        # 4为input_size/feature_size
+            aug_pred_match_list.append(list(aug_pred_match))
 
-                center_index = np.swapaxes(center_index, 1, 0)
-                center_index[0] = np.clip(center_index[0], 0, features.shape[-2] - 1)
-                center_index[1] = np.clip(center_index[1], 0, features.shape[-1] - 1)
-
-                per_actor_features = features[batch_id, :, center_index[0], center_index[1]].permute(1, 0)
-
-                if 'batch_actor_features' not in locals().keys():
-                    batch_actor_features = per_actor_features
-                else:
-                    batch_actor_features = torch.cat((batch_actor_features, per_actor_features), 0)
-
-        if 'batch_actor_features' not in locals().keys():   # 说明该batch中没有检测出任何物体
+        if 'aug_batch_actor_features' not in locals().keys():   # 说明该batch中没有检测出任何物体
             return None, None
         else:
-            return batch_actor_features, pred_match_list
+            return aug_batch_actor_features, aug_pred_match_list
+
+
 
     def set_optimizer(self, optimizer_config):
         optimizer_ref = torch.optim.__dict__[self.optimizer_config['type']]
@@ -137,8 +176,8 @@ class BaselineTrainer(TrainerBase):
                 ####################
                 # Train pridiction #
                 ####################
-                decoded_pred = self.model.corner_decoder(pred.detach_()[:, 1:,...])     # 将pred_map解码为可获取corner的形式
-                batch_actor_features, pred_match_list = self.get_batch_actor_features_and_match_list(pred.detach_(), decoded_pred, features.detach_(), label_list)
+                decoded_pred = self.model.corner_decoder(pred.detach()[:, 1:,...])     # 将pred_map解码为可获取corner的形式
+                batch_actor_features, pred_match_list = self.get_batch_actor_features_and_match_list(pred.detach(), decoded_pred, features.detach(), label_list)
 
                 if pred_match_list == None or np.array(np.concatenate(pred_match_list, axis=0) >= 0).sum()==0:    # 检测结果未匹配上GT
                     if epoch < 3:   # 为了助于收敛，前三轮只对cls分支进行参数回传

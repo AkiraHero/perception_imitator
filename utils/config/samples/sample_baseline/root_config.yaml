@@ -24,4 +24,4 @@ training:
   FP_distribution: False
 testing:
   cls_threshold: 0.05
-  nms_iou_threshold: 0.1
+  nms_iou_threshold: 0.5

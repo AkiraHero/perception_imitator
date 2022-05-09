@@ -54,6 +54,8 @@ def eval_one(model, loss_func, config, loader, image_id, device, plot=False, ver
 
     # Forward Prediction
     if len(corners) == 0:
+        ADE = None
+        FDE = None
         pass
     else:
         box_centers = np.mean(corners, axis=1)
@@ -108,7 +110,7 @@ def eval_dataset(config, model, loss_func, loader, device, e_range='all'):
         e_range = min(e_range, len(loader.dataset))
         img_list = random.sample(img_list, e_range)
 
-    log_img_list = random.sample(img_list, 10)
+    log_img_list = random.sample(img_list, 5)
 
     gts = 0
     preds = 0
@@ -125,7 +127,7 @@ def eval_dataset(config, model, loss_func, loader, device, e_range='all'):
             preds += num_pred
             loss_sum += loss
             if ADE == None or FDE == None:
-                total_num -= 1
+                pass
             else:
                 ADE_sum += ADE
                 FDE_sum += FDE
@@ -166,7 +168,7 @@ if __name__ == '__main__':
     perception_loss_func = CustomLoss(config.training_config['loss_function'])
     prediction_loss_func = SmoothL1Loss()
 
-    paras = torch.load("D:/1Pjlab/ADModel_Pro/output/baseline/50.pt")
+    paras = torch.load("C:/Users/Sunyyyy/Desktop/Study/PJLAB/Code/ADModel_Pro/output/baseline_kitti_range/50.pt")
     model.load_model_paras(paras)
     model.set_decode(True)
     model.set_eval()
@@ -176,16 +178,16 @@ if __name__ == '__main__':
     data_loader = dataset.get_data_loader()
 
     with torch.no_grad():
-        # # Eval one pic
-        # for id in range(5,6):
-        #     num_gt, num_pred, scores, pred_image, pred_match, loss, ADE, FDE= \
-        #     eval_one(model, perception_loss_func, config, data_loader, image_id=id, device="cuda", plot=False)
+        # Eval one pic
+        for id in range(1500,1650):
+            num_gt, num_pred, scores, pred_image, pred_match, loss, ADE, FDE= \
+            eval_one(model, perception_loss_func, config, data_loader, image_id=id, device="cuda", plot=True)
 
-        #     TP = (pred_match != -1).sum()
-        #     print("Loss: {:.4f}".format(loss))
-        #     print("Precision: {:.2f}".format(TP/num_pred))
-        #     print("Recall: {:.2f}".format(TP/num_gt))
+            TP = (pred_match != -1).sum()
+            print("Loss: {:.4f}".format(loss))
+            print("Precision: {:.2f}".format(TP/num_pred))
+            print("Recall: {:.2f}".format(TP/num_gt))
             
-        # Eval all
-        metrics, precisions, recalls, log_images = eval_dataset(config, model, perception_loss_func, data_loader, device="cuda", e_range='all')
-        print(metrics)
+        # # Eval all
+        # metrics, precisions, recalls, log_images = eval_dataset(config, model, perception_loss_func, data_loader, device="cuda", e_range='all')
+        # print(metrics)
