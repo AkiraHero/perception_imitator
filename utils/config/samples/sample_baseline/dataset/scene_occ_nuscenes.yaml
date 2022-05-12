@@ -6,7 +6,7 @@ paras:
   for_train: True
   num_workers: 8
   shuffle: True
-  sweeps_len: 2
+  sweeps_len: 1
   FP_distribution: False
   geometry:
     L1: -40

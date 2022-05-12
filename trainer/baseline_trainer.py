@@ -147,6 +147,16 @@ class BaselineTrainer(TrainerBase):
         torch.autograd.set_detect_anomaly(True)
         self.set_optimizer(self.optimizer_config)
         self.model.set_device(self.device)
+
+        
+        # For test
+        # pretext_model = torch.load("C:/Users/Sunyyyy/Desktop/Study/PJLAB/Code/ADModel_Pro/output/baseline_kitti_range/50.pt")
+        # model2_dict = self.model.state_dict()
+        # state_dict = {k:v for k,v in pretext_model.items() if k in model2_dict.keys()}
+        # model2_dict.update(state_dict)
+        # self.model.load_model_paras(model2_dict)
+
+        
         self.perception_loss_func.to(self.device)
         self.prediction_loss_func.to(self.device)
         self.data_loader = self.dataset.get_data_loader()

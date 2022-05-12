@@ -49,7 +49,7 @@ class Configuration:
 
     def get_shell_args_train(self):
         parser = argparse.ArgumentParser(description='arg parser')
-        parser.add_argument('--cfg_dir', required=True, type=str, default=None, help='specify the config for training')
+        parser.add_argument('--cfg_dir', type=str, default=None, help='specify the config for training')
         parser.add_argument('--batch_size', type=int, default=None, required=False,
                             help='batch size for training (in each process in distributed training)')
         parser.add_argument('--epoch', type=int, default=None, required=False, help='number of epochs to train for')

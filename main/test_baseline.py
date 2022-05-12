@@ -23,8 +23,8 @@ warnings.filterwarnings("ignore")
 def eval_one(model, loss_func, config, loader, image_id, device, plot=False, verbose=False):    # eval_one进行单帧结果生成与指标计算
     data = loader.dataset[image_id]
     
-    occupancy = torch.from_numpy(data['occupancy']).unsqueeze(0)
-    occlusion = torch.from_numpy(data['occlusion']).unsqueeze(0)
+    occupancy = torch.from_numpy(data['occupancy']).permute(2, 0, 1)
+    occlusion = torch.from_numpy(data['occlusion']).permute(2, 0, 1)
     HDmap = torch.from_numpy(data['HDmap']).permute(2, 0, 1)
 
     # get input
