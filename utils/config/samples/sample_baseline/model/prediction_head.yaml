@@ -1,11 +1,7 @@
-name: mlp
+name: predcit_head
 paras:
-  input_size: 512
-  layer_act_func:
-  - relu
-  - relu
-  - none
-  layer_node_num:
-  - 1024
-  - 512
-  - 12
+  input_size: 256
+  hidden_layer: 128
+  init_group_num: 4
+  fin_layer: 12
+

@@ -44,22 +44,17 @@ class FpSceneOccNuScenesDataset(DatasetBase):
         self._shuffle = config['paras']['shuffle']
         self._nuscenes_type = config['paras']['nuscenes_type']
         self._geometry = config['paras']['geometry']
+        self._sweeps_len = config['paras']['sweeps_len']
+        assert self._sweeps_len > 0 and isinstance(self._sweeps_len, int)
         self._distribution_setting = config['paras']['FP_distribution']
         self._car_std = config['paras']['waypoints_std']['car']
         self._pedestrian_std = config['paras']['waypoints_std']['pedestrian']
 
-        
-        # self._occ = []
-        # for i in range(1):
-        #     occ_file = os.path.join(self._data_root, "easy_scene_%d.pkl" %i)
-        #     with open(occ_file, 'rb') as f:
-        #         occ_split = pickle.load(f)
-        #         self._occ.extend(occ_split)
-        
         self._nuscenes = NuScenes(self._nuscenes_type, dataroot="D:/PJLAB_Experiment/Data/nuScenes", verbose=False)
         self._helper = PredictHelper(self._nuscenes)
 
-        gt_file = os.path.join(self._data_root, "mini_sim_model_gt.pkl")
+        gt_file_name = "mini_sim_model_gt.pkl" if self._nuscenes_type == "v1.0-mini" else "sim_model_gt.pkl"
+        gt_file = os.path.join(self._data_root, gt_file_name)
         with open(gt_file, 'rb') as f:
             self._gt = pickle.load(f)   # 加载target detection model和target prediction model下的真值
 
@@ -278,30 +273,22 @@ class FpSceneOccNuScenesDataset(DatasetBase):
             else:
                 map[label_x, label_y, 1:7] = actual_reg_target
     
-    def get_sample_egopose_calib_token(self, idx):
-        sample_token = list(self._gt.keys())[idx]
-
+    def get_egopose_calib_token(self, sample_token):
         sample = self._nuscenes.get('sample', sample_token)
         lidar_top_data = self._nuscenes.get('sample_data', sample['data']['LIDAR_TOP']) 
         calib_token = lidar_top_data['calibrated_sensor_token']
         ego_pose_token = lidar_top_data['ego_pose_token']
 
-        return sample_token, ego_pose_token, calib_token
+        return ego_pose_token, calib_token
 
-    def get_occupancy(self, idx):
-        return self._occ[idx]['occupancy']
+    def sample_occupancy_and_occlusion(self, sample_token):
+        ego_pose_token, calib_token  = self.get_egopose_calib_token(sample_token)
 
-    def get_occlusion(self, idx):
-        return self._occ[idx]['occlusion']
-    
-    def get_occupancy_and_occlusion(self, idx):
         pic_height, pic_width = self._geometry['label_shape'][:2]
         ratio = self._geometry['ratio']
         img_cam_pos = [pic_height, pic_width/2]
-        occupancy = np.zeros([pic_height, pic_width]).astype('int32')
-        occlusion = np.ones([pic_height, pic_width]).astype('int32')
-
-        sample_token, ego_pose_token, calib_token  = self.get_sample_egopose_calib_token(idx)
+        sample_occupancy = np.zeros([pic_height, pic_width]).astype('int32')
+        sample_occlusion = np.ones([pic_height, pic_width]).astype('int32')
 
         sample_annotation = self._helper.get_annotations_for_sample(sample_token)
         calib_data = self._nuscenes.get('calibrated_sensor', calib_token)
@@ -342,7 +329,7 @@ class FpSceneOccNuScenesDataset(DatasetBase):
                     l_dis = euclidean_distance(-1/np.tan(theta + math.pi), img_y + 1/np.tan(theta + math.pi)*img_x, [pix_x, pix_y])  
 
                     if w_dis <= img_w / 2 and l_dis <= img_l / 2:
-                        occupancy[pix_x, pix_y] = 1
+                        sample_occupancy[pix_x, pix_y] = 1
 
             ############################                
             # Second stage: get occlusion
@@ -425,7 +412,39 @@ class FpSceneOccNuScenesDataset(DatasetBase):
                 matrix = np.zeros((pic_width, pic_height), dtype=np.int32)
                 cv2.drawContours(matrix, [points], -1, (1), thickness=-1)
                 list_of_points_indices = np.nonzero(np.swapaxes(matrix, 1, 0))
-                occlusion[list_of_points_indices] = 0
+                sample_occlusion[list_of_points_indices] = 0
+
+        return sample_occupancy, sample_occlusion
+
+    def get_occupancy(self, idx):
+        return self._occ[idx]['occupancy']
+
+    def get_occlusion(self, idx):
+        return self._occ[idx]['occlusion']
+    
+    def get_occupancy_and_occlusion(self, idx):
+        occupancy = []
+        occlusion = []
+
+        sample_token = list(self._gt.keys())[idx]
+        sample = self._nuscenes.get('sample', sample_token)
+        for i in range(self._sweeps_len):
+            sample_occupancy, sample_occlusion = self.sample_occupancy_and_occlusion(sample_token)
+            occupancy.append(sample_occupancy)
+            occlusion.append(sample_occlusion)
+
+            if sample['prev'] in self._gt.keys():
+                sample_token = sample['prev']
+                sample = self._nuscenes.get('sample', sample_token)
+            else:   # 当真值中没有prev_sample时，则重复当前帧结果
+                pass
+        
+        # 将当前帧元素放在最顶层
+        occupancy.reverse()
+        occlusion.reverse()
+
+        occupancy = np.stack(occupancy, axis=-1)      
+        occlusion = np.stack(occlusion, axis=-1)
 
         return occupancy, occlusion
 
@@ -438,7 +457,8 @@ class FpSceneOccNuScenesDataset(DatasetBase):
         static_layer_rasterizer = StaticLayerRasterizer(self._helper, resolution=ratio, meters_ahead=meters_ahead, \
                                                         meters_behind=meters_behind, meters_left=meters_left, meters_right=meters_right)
 
-        sample_token_img, ego_pose_token_img, _ = self.get_sample_egopose_calib_token(idx)
+        sample_token_img = list(self._gt.keys())[idx]
+        ego_pose_token_img, _ = self.get_egopose_calib_token(sample_token_img)
 
         HD_map = static_layer_rasterizer.make_representation(ego_pose_token_img, sample_token_img)
 
@@ -481,7 +501,8 @@ class FpSceneOccNuScenesDataset(DatasetBase):
         #####################################################
 
         else:
-            sample_token, ego_pose_token, calib_token  = self.get_sample_egopose_calib_token(idx)
+            sample_token = list(self._gt.keys())[idx]
+            ego_pose_token, calib_token= self.get_egopose_calib_token(sample_token)
 
             all_gt_data = self._gt[sample_token]
             calib_data = self._nuscenes.get('calibrated_sensor', calib_token)        

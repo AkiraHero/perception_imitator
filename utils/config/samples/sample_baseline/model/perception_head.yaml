@@ -1,4 +1,4 @@
-name: cls_head
+name: detect_head
 paras:
   input_size: 
   - 192

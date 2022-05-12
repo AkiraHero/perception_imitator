@@ -20,6 +20,7 @@ class BaselineTrainer(TrainerBase):
         self.prediction_loss_func = SmoothL1Loss()
         self.tensorboard_out_path = config['tensorboard_out_path']
         self.data_distributed = config['FP_distribution']
+        self.actor_feature_size = config['actor_feature_size']
         self.optimizer = None
         self.data_loader = None
         
@@ -114,15 +115,18 @@ class BaselineTrainer(TrainerBase):
                     label_x = min(p[0], features.shape[-2] - 1)
                     label_y = min(p[1], features.shape[-1] - 1)
                     per_actor_feature = features[batch_id, :, label_x, label_y][None,None,:]
-                    aug_per_actor_feature = nn.functional.interpolate(per_actor_feature, size=256, mode='linear').squeeze(0)
+                    aug_per_actor_feature = nn.functional.interpolate(per_actor_feature, size=self.actor_feature_size, mode='linear').squeeze(0)
 
                     aug_per_actor_features.append(aug_per_actor_feature)
-                
-            aug_per_actor_features = torch.cat(aug_per_actor_features, dim=0)
-            if 'aug_batch_actor_features' not in locals().keys():
-                aug_batch_actor_features = aug_per_actor_features
+            
+            if len(aug_per_actor_features) == 0:
+                pass
             else:
-                aug_batch_actor_features = torch.cat((aug_batch_actor_features, aug_per_actor_features), 0)
+                aug_per_actor_features = torch.cat(aug_per_actor_features, dim=0)
+                if 'aug_batch_actor_features' not in locals().keys():
+                    aug_batch_actor_features = aug_per_actor_features
+                else:
+                    aug_batch_actor_features = torch.cat((aug_batch_actor_features, aug_per_actor_features), 0)
 
             aug_pred_match_list.append(list(aug_pred_match))
 
@@ -159,8 +163,8 @@ class BaselineTrainer(TrainerBase):
             
                 self.model.zero_grad()
 
-                occupancy = data['occupancy'].unsqueeze(1)
-                occlusion = data['occlusion'].unsqueeze(1)
+                occupancy = data['occupancy'].permute(0, 3, 1, 2)
+                occlusion = data['occlusion'].permute(0, 3, 1, 2)
                 HDmap = data['HDmap'].permute(0, 3, 1, 2)
                 label_map = data['label_map'].permute(0, 3, 1, 2)
                 label_list = data['label_list']
@@ -179,31 +183,32 @@ class BaselineTrainer(TrainerBase):
                 decoded_pred = self.model.corner_decoder(pred.detach()[:, 1:,...])     # 将pred_map解码为可获取corner的形式
                 batch_actor_features, pred_match_list = self.get_batch_actor_features_and_match_list(pred.detach(), decoded_pred, features.detach(), label_list)
 
-                if pred_match_list == None or np.array(np.concatenate(pred_match_list, axis=0) >= 0).sum()==0:    # 检测结果未匹配上GT
-                    if epoch < 3:   # 为了助于收敛，前三轮只对cls分支进行参数回传
-                        loss = cls_loss
-                    else:
-                        loss = perc_loss
+                if epoch < 3:   # 为了助于收敛，前三轮只对cls分支进行参数回传
+                    loss = cls_loss
                     pred_loss = np.NaN
-                else:
-                    pred_mask = np.array(np.concatenate(pred_match_list, axis=0) >= 0)      # 匹配上GT的mask
+                else: 
+                    if pred_match_list == None or np.array(np.concatenate(pred_match_list, axis=0) >= 0).sum()==0:    # 检测结果未匹配上GT
+                        loss = perc_loss
+                        pred_loss = np.NaN
+                    else:
+                        pred_mask = np.array(np.concatenate(pred_match_list, axis=0) >= 0)      # 匹配上GT的mask
 
-                    filter_batch_actor_features = batch_actor_features[pred_mask]           # 只对匹配上GT的检测框中心点处的特征进行预测
-                    pred_way_points = self.model.prediction(filter_batch_actor_features)    # 预测6个点的waypoints(6*2)
+                        filter_batch_actor_features = batch_actor_features[pred_mask]           # 只对匹配上GT的检测框中心点处的特征进行预测
+                        pred_way_points = self.model.prediction(filter_batch_actor_features)    # 预测6个点的waypoints(6*2)
 
-                    gt_way_points = []   # 根据匹配结果获取对应的真值
-                    for batch_id, one_match_list in enumerate(pred_match_list):
-                        index = [i for i in one_match_list if i >= 0]
-                        if len(index) == 0:
-                            continue
-                        one_gt_way_points = waypoints[batch_id][index]
+                        gt_way_points = []   # 根据匹配结果获取对应的真值
+                        for batch_id, one_match_list in enumerate(pred_match_list):
+                            index = [i for i in one_match_list if i >= 0]
+                            if len(index) == 0:
+                                continue
+                            one_gt_way_points = waypoints[batch_id][index]
 
-                        gt_way_points.append(one_gt_way_points)
-                    
-                    gt_way_points = torch.tensor(np.concatenate(gt_way_points, axis=0), dtype=torch.float32).view(-1, 12).cuda()
+                            gt_way_points.append(one_gt_way_points)
+                        
+                        gt_way_points = torch.tensor(np.concatenate(gt_way_points, axis=0), dtype=torch.float32).view(-1, 12).cuda()
 
-                    pred_loss = self.prediction_loss_func(pred_way_points, gt_way_points)
-                    loss = perc_loss + pred_loss
+                        pred_loss = self.prediction_loss_func(pred_way_points, gt_way_points)
+                        loss = perc_loss + pred_loss
 
                 loss.backward()
                 self.optimizer.step()

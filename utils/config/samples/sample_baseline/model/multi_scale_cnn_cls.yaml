@@ -9,4 +9,4 @@ paras:
       model_class: DetectHead
     prediction:
       config_file: model/prediction_head.yaml
-      model_class: MLP
+      model_class: PredictHead

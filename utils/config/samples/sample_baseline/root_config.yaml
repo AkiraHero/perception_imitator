@@ -20,6 +20,7 @@ training:
       lr: 0.001
     type: Adam
   trainer_class: BaselineTrainer
+  actor_feature_size: 256
   tensorboard_out_path: default
   FP_distribution: False
 testing:
