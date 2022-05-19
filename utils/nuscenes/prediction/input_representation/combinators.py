@@ -8,6 +8,8 @@ import numpy as np
 
 from nuscenes.prediction.input_representation.interface import Combinator
 
+import matplotlib.pyplot as plt
+
 
 def add_foreground_to_image(base_image: np.ndarray,
                             foreground_image: np.ndarray) -> np.ndarray:
@@ -46,8 +48,18 @@ class Rasterizer(Combinator):
         :param data: List of images to combine.
         :return: Numpy array representing image (type 'uint8')
         """
-        # All images in the dict are the same shape
-        image_shape = data[0].shape
+        # # All images in the dict are the same shape
+        # image_shape = data[0].shape
+        # base_image = np.zeros(image_shape).astype("uint8")
+        # # return reduce(add_foreground_to_image, [base_image] + data)
 
-        base_image = np.zeros(image_shape).astype("uint8")
-        return reduce(add_foreground_to_image, [base_image] + data)
+        all_img = []
+        for img in data:
+            img2gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            _, proc_img = cv2.threshold(img2gray, 0, 1, cv2.THRESH_BINARY) 
+
+            all_img.append(proc_img)
+
+        conbined_img = np.stack(all_img, axis=-1)
+
+        return conbined_img
