@@ -5,7 +5,7 @@ paras:
   - relu
   - relu
   - relu
-  - sigmoid
+  - none
   layer_node_num:
   - 1024
   - 1024

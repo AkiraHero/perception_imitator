@@ -12,12 +12,6 @@ model:
 training:
   device: 'cuda:0'
   epoch: 1000
-  gumble_temp: 1.0
-  hard_gumble: 0
-  rec_weight: 1
-  gauss_weight: 1
-  categ_weight: 1
-  recon_type: bce
   optimizer:
   - name: encoder_opt
     paras:
@@ -27,5 +21,13 @@ training:
     paras:
       lr: 0.0001
     type: Adam
-  trainer_class: GMVaeGanTrainer
+  trainer_class: GMWaeGanTrainer
   tensorboard_out_path: default
+  gumble_temp: 1.0
+  hard_gumble: 0
+  rec_weight: 1
+  gauss_weight: 1
+  categ_weight: 1
+  recon_type: bce
+  n_critic: 5
+  weight_clip: 0.01
