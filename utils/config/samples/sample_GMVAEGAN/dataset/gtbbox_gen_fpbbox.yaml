@@ -1,0 +1,7 @@
+dataset_class: GtbboxGenFpbbox
+paras:
+  batch_size: 128
+  data_root: ./data
+  for_train: True
+  num_workers: 8
+  shuffle: True

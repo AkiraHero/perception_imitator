@@ -1,0 +1,7 @@
+name: gaussian_mixture_vae
+paras:
+  latent_distribution: GaussianMixture
+  input_dim: 640
+  gaussian_size: 64
+  num_classes: 5
+  output_dim: 140
