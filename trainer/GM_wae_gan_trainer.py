@@ -1,3 +1,4 @@
+from tkinter.tix import Tree
 from trainer.trainer_base import TrainerBase
 import torch.nn as nn
 import torch
@@ -54,11 +55,13 @@ class GMWaeGanTrainer(TrainerBase):
             for step, data in enumerate(self.data_loader):
                 self.step = step
                 self.global_step += 1
-                self.dataset.load_data2gpu(data)
+                self.dataset.load_data_to_gpu(data)
 
-                gt_bboxes = data['gt_bboxes']
-                fp_bboxes = data['fp_bboxes_all']
-                cur_batch_size = gt_bboxes.shape[0]
+                occupancy = data['occupancy'].permute(0, 3, 1, 2)
+                occlusion = data['occlusion'].permute(0, 3, 1, 2)
+                bev_bbox = data['bev_bbox']
+                bs = occupancy.shape[0]
+                
                 
                 ############################
                 # (1) Update D network
@@ -66,21 +69,25 @@ class GMWaeGanTrainer(TrainerBase):
                 self.discriminator_optimizer.zero_grad()
 
                 # Get output of target_model
-                generator_input = gt_bboxes # bs*640
-                discriminator_input_real = torch.cat((generator_input, fp_bboxes), 1)   # bs * (640+140)
+                generator_input = torch.cat((occupancy, occlusion), dim=1)
+                input_reshape = nn.functional.interpolate(generator_input, 
+                                                        scale_factor=0.125, 
+                                                        mode='bilinear', 
+                                                        align_corners=True).contiguous().view(bs, -1)
+                discriminator_input_real = torch.cat((input_reshape, bev_bbox), 1)   # bs * (640+140)
 
                 # Forward pass real batch through discriminator and Calculate loss on all-real batch
                 errD_real = -torch.mean(self.model.discriminator(discriminator_input_real))
 
                 # Train with all-fake batch
                 # Generate fake image batch with G
-                GMmodel_out = self.model.generator(generator_input)
-                z, gen_fp_bboxes = GMmodel_out['gaussian'], GMmodel_out['x_rec'] 
+                GMmodel_out, _ = self.model.generator(generator_input)
+                z, gen_bev_bbox = GMmodel_out['gaussian'], GMmodel_out['x_rec'] 
                 logits, prob_cat = GMmodel_out['logits'], GMmodel_out['prob_cat']
                 y_mu, y_var = GMmodel_out['y_mean'], GMmodel_out['y_var']
                 mu, var = GMmodel_out['mean'], GMmodel_out['var']
 
-                discriminator_input_fake = torch.cat((generator_input, gen_fp_bboxes), 1)
+                discriminator_input_fake = torch.cat((input_reshape, gen_bev_bbox), 1)
 
                 # # Classify all fake batch with D and Calculate D's loss on the all-fake batch
                 errD_fake = torch.mean(self.model.discriminator(discriminator_input_fake.detach()))
@@ -108,7 +115,7 @@ class GMWaeGanTrainer(TrainerBase):
                     errG1 = -torch.mean(self.model.discriminator(discriminator_input_fake).view(-1))
 
                     # Calculate Gaussian Mixture Loss
-                    loss_rec = GM_creterion.reconstruction_loss(fp_bboxes, gen_fp_bboxes, self.rec_type) # reconstruction loss
+                    loss_rec = GM_creterion.reconstruction_loss(bev_bbox, gen_bev_bbox, self.rec_type) # reconstruction loss
                     loss_gauss = GM_creterion.gaussian_loss(z, mu, var, y_mu, y_var) # gaussian loss
                     loss_cat = - GM_creterion.entropy(logits, prob_cat) - np.log(0.1) # categorical loss
                     

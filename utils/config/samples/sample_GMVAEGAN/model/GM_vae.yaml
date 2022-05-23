@@ -1,7 +1,11 @@
 name: gaussian_mixture_vae
 paras:
   latent_distribution: GaussianMixture
-  input_dim: 640
+  submodules:
+    encoder:
+      config_file: model/multi_scale_cnn.yaml
+      model_class: MultiScaleCNN
+  input_dim: 8800
   gaussian_size: 64
   num_classes: 5
-  output_dim: 140
+  output_dim: 50

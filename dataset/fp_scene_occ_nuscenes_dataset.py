@@ -471,6 +471,7 @@ class FpSceneOccNuScenesDataset(DatasetBase):
         else:
             label_map = np.zeros((self._geometry['label_shape'][0], self._geometry['label_shape'][1], 7), dtype=np.float32)
         label_list = []
+        bev_bbox = []
         all_future_waypoints = []
         all_future_waypoints_st = []
 
@@ -550,6 +551,7 @@ class FpSceneOccNuScenesDataset(DatasetBase):
                     corners, reg_target = self.get_corners([x, y, l, w, theta], use_distribution=False)
                     self.update_label_map(label_map, corners, reg_target)
                     label_list.append(corners)
+                    bev_bbox.extend([x,y,l,w,theta])
                     all_future_waypoints.append(lidar_waypoints)
                     all_future_waypoints_st.append(lidar_waypoints_st)
 
@@ -562,7 +564,7 @@ class FpSceneOccNuScenesDataset(DatasetBase):
 
         assert len(label_list) == future_waypoints.shape[0]         # label_list应该和future_waypoints一一对应
 
-        return label_map, label_list, future_waypoints, future_waypoints_st
+        return label_map, label_list, bev_bbox, future_waypoints, future_waypoints_st
 
     def reg_target_transform(self, label_map):
         '''
@@ -581,7 +583,8 @@ class FpSceneOccNuScenesDataset(DatasetBase):
 
         HD_map = self.get_HDmap(index)   # 此处index定义随意定义
         occupancy, occlusion = self.get_occupancy_and_occlusion(index)       # 实际的推理过程中，使用该方法 
-        label_map, label_list, future_waypoints, future_waypoints_st = self.get_label(index)
+        label_map, label_list, bev_bbox, future_waypoints, future_waypoints_st = self.get_label(index)
+        bev_bbox = bev_bbox[:50] + [0,]*(50-len(bev_bbox)) # 将数量固定为10个bbox(10*5)，超出的截取，不足的补零
 
         data_dict = {
             'occupancy': occupancy,
@@ -589,6 +592,7 @@ class FpSceneOccNuScenesDataset(DatasetBase):
             'HDmap': HD_map,
             'label_map': label_map,
             'label_list': label_list,
+            'bev_bbox': bev_bbox,
             'future_waypoints': future_waypoints,
             'future_waypoints_st': future_waypoints_st
         }
@@ -617,7 +621,7 @@ class FpSceneOccNuScenesDataset(DatasetBase):
 
         for key, val in data_dict.items():
             try:
-                if key in ['occupancy', 'occlusion', 'HDmap', 'label_map']:
+                if key in ['occupancy', 'occlusion', 'HDmap', 'label_map', 'bev_bbox']:
                     values = []
                     for value in val:
                         values.append(value)

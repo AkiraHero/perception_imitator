@@ -7,99 +7,99 @@ from .utils import *
 
 # Inference Network
 class InferenceNet(nn.Module):
-  def __init__(self, x_dim, z_dim, y_dim):
-    super(InferenceNet, self).__init__()
+    def __init__(self, x_dim, z_dim, y_dim):
+        super(InferenceNet, self).__init__()
+
+        # q(y|x)
+        self.inference_qyx = torch.nn.ModuleList([
+            nn.Linear(x_dim, 512),
+            nn.ReLU(),
+            nn.Linear(512, 512),
+            nn.ReLU(),
+            GumbelSoftmax(512, y_dim)
+        ])
+
+        # q(z|y,x)
+        self.inference_qzyx = torch.nn.ModuleList([
+            nn.Linear(x_dim + y_dim, 512),
+            nn.ReLU(),
+            nn.Linear(512, 512),
+            nn.ReLU(),
+            Gaussian(512, z_dim)
+        ])
 
     # q(y|x)
-    self.inference_qyx = torch.nn.ModuleList([
-        nn.Linear(x_dim, 512),
-        nn.ReLU(),
-        nn.Linear(512, 512),
-        nn.ReLU(),
-        GumbelSoftmax(512, y_dim)
-    ])
+    def qyx(self, x, temperature, hard):
+        num_layers = len(self.inference_qyx)
+        for i, layer in enumerate(self.inference_qyx):
+          if i == num_layers - 1:
+            #last layer is gumbel softmax
+            x = layer(x, temperature, hard)
+          else:
+            x = layer(x)
+        return x
 
-    # q(z|y,x)
-    self.inference_qzyx = torch.nn.ModuleList([
-        nn.Linear(x_dim + y_dim, 512),
-        nn.ReLU(),
-        nn.Linear(512, 512),
-        nn.ReLU(),
-        Gaussian(512, z_dim)
-    ])
-
-  # q(y|x)
-  def qyx(self, x, temperature, hard):
-    num_layers = len(self.inference_qyx)
-    for i, layer in enumerate(self.inference_qyx):
-      if i == num_layers - 1:
-        #last layer is gumbel softmax
-        x = layer(x, temperature, hard)
-      else:
-        x = layer(x)
-    return x
-
-  # q(z|x,y)
-  def qzxy(self, x, y):
-    concat = torch.cat((x, y), dim=1)  
-    for layer in self.inference_qzyx:
-      concat = layer(concat)
-    return concat
-  
-  def forward(self, x, temperature=1.0, hard=0):
-    #x = Flatten(x)
-
-    # q(y|x)
-    logits, prob, y = self.qyx(x, temperature, hard)
-    
     # q(z|x,y)
-    mu, var, z = self.qzxy(x, y)
+    def qzxy(self, x, y):
+        concat = torch.cat((x, y), dim=1)  
+        for layer in self.inference_qzyx:
+          concat = layer(concat)
+        return concat
 
-    output = {'mean': mu, 'var': var, 'gaussian': z, 
-              'logits': logits, 'prob_cat': prob, 'categorical': y}
-    return output
+    def forward(self, x, temperature=1.0, hard=0):
+        #x = Flatten(x)
+
+        # q(y|x)
+        logits, prob, y = self.qyx(x, temperature, hard)
+        
+        # q(z|x,y)
+        mu, var, z = self.qzxy(x, y)
+
+        output = {'mean': mu, 'var': var, 'gaussian': z, 
+                  'logits': logits, 'prob_cat': prob, 'categorical': y}
+        return output
 
 
 # Generative Network
 class GenerativeNet(nn.Module):
-  def __init__(self, x_dim, z_dim, y_dim):
-    super(GenerativeNet, self).__init__()
+    def __init__(self, x_dim, z_dim, y_dim):
+        super(GenerativeNet, self).__init__()
+
+        # p(z|y)
+        self.y_mu = nn.Linear(y_dim, z_dim)
+        self.y_var = nn.Linear(y_dim, z_dim)
+
+        # p(x|z)
+        self.generative_pxz = torch.nn.ModuleList([
+          nn.Linear(z_dim, 512),
+          nn.ReLU(),
+          nn.Linear(512, 512),
+          nn.ReLU(),
+          nn.Linear(512, x_dim),
+          torch.nn.Sigmoid()
+      ])
 
     # p(z|y)
-    self.y_mu = nn.Linear(y_dim, z_dim)
-    self.y_var = nn.Linear(y_dim, z_dim)
-
-    # p(x|z)
-    self.generative_pxz = torch.nn.ModuleList([
-        nn.Linear(z_dim, 512),
-        nn.ReLU(),
-        nn.Linear(512, 512),
-        nn.ReLU(),
-        nn.Linear(512, x_dim),
-        torch.nn.Sigmoid()
-    ])
-
-  # p(z|y)
-  def pzy(self, y):
-    y_mu = self.y_mu(y)
-    y_var = F.softplus(self.y_var(y))
-    return y_mu, y_var
-  
-  # p(x|z)
-  def pxz(self, z):
-    for layer in self.generative_pxz:
-      z = layer(z)
-    return z
-
-  def forward(self, z, y):
-    # p(z|y)
-    y_mu, y_var = self.pzy(y)
+    def pzy(self, y):
+        y_mu = self.y_mu(y)
+        y_var = F.softplus(self.y_var(y))
+        return y_mu, y_var
     
     # p(x|z)
-    x_rec = self.pxz(z)
+    def pxz(self, z):
+        for layer in self.generative_pxz:
+          z = layer(z)
+        return z
 
-    output = {'y_mean': y_mu, 'y_var': y_var, 'x_rec': x_rec}
-    return output
+    def forward(self, z, y):
+        # p(z|y)
+        y_mu, y_var = self.pzy(y)
+        
+        # p(x|z)
+        x_rec = self.pxz(z)
+
+        output = {'y_mean': y_mu, 'y_var': y_var, 'x_rec': x_rec}
+        return output
 
 
 class GaussianMixtureVae(ModelBase):
@@ -110,6 +110,12 @@ class GaussianMixtureVae(ModelBase):
         self.y_dim = config['paras']['num_classes']
         self.out_dim = config['paras']['output_dim']
 
+        self.encoder = ModelFactory.ModelFactory.get_model(config['paras']['submodules']['encoder'])
+        self.encode_2_one_channel = nn.Sequential(
+            nn.Conv2d(in_channels=192, out_channels=1, kernel_size=1),
+            nn.BatchNorm2d(1),
+            nn.ReLU(),
+        )
         self.inference = InferenceNet(self.x_dim, self.z_dim, self.y_dim)
         self.generative = GenerativeNet(self.out_dim, self.z_dim, self.y_dim)
 
@@ -121,8 +127,11 @@ class GaussianMixtureVae(ModelBase):
                     nn.init.constant_(m.bias, 0)
 
     def forward(self, x, temperature=1.0, hard=0):
-        x = x.view(x.size(0), -1)
-        out_inf = self.inference(x, temperature, hard)
+        x = self.encoder(x)
+        x = self.encode_2_one_channel(x)
+        feature = x.contiguous().view(x.shape[0], -1)
+        
+        out_inf = self.inference(feature, temperature, hard)
         z, y = out_inf['gaussian'], out_inf['categorical']
         out_gen = self.generative(z, y)
         
@@ -130,7 +139,7 @@ class GaussianMixtureVae(ModelBase):
         output = out_inf
         for key, value in out_gen.items():
             output[key] = value
-        return output
+        return output, feature
 
 
     @staticmethod

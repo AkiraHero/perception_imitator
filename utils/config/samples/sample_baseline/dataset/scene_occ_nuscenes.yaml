@@ -2,7 +2,7 @@ dataset_class: FpSceneOccNuScenesDataset
 paras:
   nuscenes_type: v1.0-mini
   batch_size: 8
-  data_root: C:/Users/Sunyyyy/Desktop/Study/PJLAB/Code/ADModel_Pro/data
+  data_root: ./data
   for_train: True
   num_workers: 8
   shuffle: True
