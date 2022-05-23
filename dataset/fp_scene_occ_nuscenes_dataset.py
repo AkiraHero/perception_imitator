@@ -85,6 +85,11 @@ class FpSceneOccNuScenesDataset(DatasetBase):
         }
         return d[clss]
 
+    def standardize(self, bev_bbox, mean, std):
+        norm_bev_bbox = (np.array(bev_bbox) - mean) / std
+
+        return norm_bev_bbox
+
     def get_corners(self, bbox, use_distribution):
         if  use_distribution == True:
             x, y, l, w, yaw, x_var, y_var, l_var, w_var, yaw_var = bbox
@@ -551,7 +556,12 @@ class FpSceneOccNuScenesDataset(DatasetBase):
                     corners, reg_target = self.get_corners([x, y, l, w, theta], use_distribution=False)
                     self.update_label_map(label_map, corners, reg_target)
                     label_list.append(corners)
-                    bev_bbox.extend([x,y,l,w,theta])
+
+                    car_mean = np.array([17.45, -6.92, 4.72, 1.93, -1.11])
+                    car_std = np.array([10.43, 8.26, 0.26, 0.077, 1.61])
+                    norm_bev_bbox_para = self.standardize([x, y, l, w, theta], car_mean, car_std)
+                    bev_bbox.extend(norm_bev_bbox_para)
+
                     all_future_waypoints.append(lidar_waypoints)
                     all_future_waypoints_st.append(lidar_waypoints_st)
 

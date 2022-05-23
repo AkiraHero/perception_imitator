@@ -76,7 +76,7 @@ class GenerativeNet(nn.Module):
           nn.Linear(512, 512),
           nn.ReLU(),
           nn.Linear(512, x_dim),
-          torch.nn.Sigmoid()
+        #   torch.nn.Sigmoid()
       ])
 
     # p(z|y)
