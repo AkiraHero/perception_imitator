@@ -31,7 +31,7 @@ def eval_one(model, loss_func, config, loader, image_id, device, plot=False, ver
     input = torch.cat((occupancy, occlusion, HDmap), dim=0).float().to(device)
 
     # get label
-    label_map, label_list, future_waypoints, future_waypoints_st = loader.dataset.get_label(image_id)
+    label_map, label_list, _, future_waypoints, future_waypoints_st = loader.dataset.get_label(image_id)
     label_map = torch.from_numpy(label_map).permute(2, 0, 1).unsqueeze_(0).to(device)
 
     # Forward Detection

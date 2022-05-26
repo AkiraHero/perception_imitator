@@ -1,7 +1,7 @@
 # for train vae-wgan model using main/train.py on minist dataset
 dataset:
   config_file: dataset/gtbbox_gen_fpbbox.yaml
-  dataset_class: FpSceneOccNuScenesDataset
+  dataset_class: BaselineNuscenesDataset
 logging:
   ckpt_eph_interval: 50
   path: ../output

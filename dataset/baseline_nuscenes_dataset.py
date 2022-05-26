@@ -1,15 +1,17 @@
+import os
+import math
+import cv2
+import random
 from cProfile import label
 from cmath import pi
 from optparse import Values
 import pickle
 from matplotlib.style import use
+from sklearn.mixture import GaussianMixture
 import matplotlib.pyplot as plt
 import numpy as np
-from torch.utils.data import DataLoader
 import torch
-import os
-import math
-import cv2
+from torch.utils.data import DataLoader
 
 from dataset.dataset_base import DatasetBase
 from utils.nuscenes.nuscenes import NuScenes
@@ -33,7 +35,7 @@ Dataset for nuScenes easy scene expression loading
     
 '''
 
-class FpSceneOccNuScenesDataset(DatasetBase):
+class BaselineNuscenesDataset(DatasetBase):
     
     def __init__(self, config):
         super(DatasetBase, self).__init__()
@@ -63,15 +65,67 @@ class FpSceneOccNuScenesDataset(DatasetBase):
         #     with open(fp_distribution_name, 'rb') as f:
         #         self._fp_distribution = pickle.load(f)   # 存储的是所有实验得到FP的各个参数的均值和方差
 
+        # 获取所有DT和GT x, y, logl, logw, cost, sint的误差数组，用于后续使用高斯混合分布进行逼近
+        self.GMM = self.get_box_error_GMM(8)
+
     def get_data_loader(self, distributed=False):
         return DataLoader(
             dataset=self,
             batch_size=self._batch_size,
             shuffle=self._shuffle,
             num_workers=self._num_workers,
-            collate_fn=FpSceneOccNuScenesDataset.collate_batch
+            collate_fn=BaselineNuscenesDataset.collate_batch
         )
     
+    def get_box_error_GMM(self, components=8):
+        err_x, err_y, err_log_l, err_log_w, err_cost, err_sint = [], [], [], [], [], []
+        for sample_token in list(self._gt.keys()):
+            ego_pose_token, calib_token= self.get_egopose_calib_token(sample_token)
+
+            all_gt_data = self._gt[sample_token]
+            calib_data = self._nuscenes.get('calibrated_sensor', calib_token)        
+            ego_data = self._nuscenes.get('ego_pose', ego_pose_token)
+
+            for gt_data in all_gt_data:
+                det_data = gt_data["detection"]
+                if det_data['detection_name'] != 'car': 
+                    continue
+                if det_data['detection_score'] >= 0.05:
+                    # DT
+                    center, yaw = self.transform_gobal2metric(det_data['translation'], det_data['rotation'], calib_data, ego_data)
+                    x = center[1]
+                    y = - center[0]
+                    log_l = np.log(np.array(det_data['size'])[1])
+                    log_w = np.log(np.array(det_data['size'])[0])
+                    cost = np.cos(yaw)
+                    sint = np.sin(yaw)
+
+                    # DT对应的GT
+                    ann = self._nuscenes.get('sample_annotation', det_data['match_gt'])
+                    center, yaw = self.transform_gobal2metric(ann['translation'], ann['rotation'], calib_data, ego_data)
+                    gt_x = center[1]
+                    gt_y = - center[0]
+                    gt_log_l = np.log(np.array(ann['size'])[1])
+                    gt_log_w = np.log(np.array(ann['size'])[0])
+                    gt_cost = np.cos(yaw)
+                    gt_sint = np.sin(yaw)
+
+                    err_x.extend([x - gt_x])
+                    err_y.extend([y - gt_y])
+                    err_log_l.extend([log_l - gt_log_l])
+                    err_log_w.extend([log_w - gt_log_w])
+                    err_cost.extend([cost - gt_cost])
+                    err_sint.extend([sint - gt_sint])
+
+        GMM_x = GaussianMixture(n_components=components, covariance_type='full', random_state=np.random).fit(np.array(err_x).reshape(-1, 1))
+        GMM_y = GaussianMixture(n_components=components, covariance_type='full', random_state=np.random).fit(np.array(err_y).reshape(-1, 1))
+        GMM_log_l = GaussianMixture(n_components=components, covariance_type='full', random_state=np.random).fit(np.array(err_log_l).reshape(-1, 1))
+        GMM_log_w = GaussianMixture(n_components=components, covariance_type='full', random_state=np.random).fit(np.array(err_log_w).reshape(-1, 1))
+        GMM_cost = GaussianMixture(n_components=components, covariance_type='full', random_state=np.random).fit(np.array(err_cost).reshape(-1, 1))
+        GMM_sint = GaussianMixture(n_components=components, covariance_type='full', random_state=np.random).fit(np.array(err_sint).reshape(-1, 1))
+
+        return [GMM_x, GMM_y, GMM_log_l, GMM_log_w, GMM_cost, GMM_sint]
+
     def label_str2num(self, clss):
         d = {
             'Car': 1,
@@ -520,7 +574,7 @@ class FpSceneOccNuScenesDataset(DatasetBase):
                 pred_data = gt_data["prediction"]
                 if det_data['detection_name'] != 'car': 
                     continue
-                if det_data['detection_score'] >= 0.1:
+                if det_data['detection_score'] >= 0.05:
                     # Step 1: 获取lidar坐标系下的检测结果，分为训练所用的label_map和测试所用label_list
                     center, yaw = self.transform_gobal2metric(det_data['translation'], det_data['rotation'], calib_data, ego_data)
 
@@ -577,6 +631,101 @@ class FpSceneOccNuScenesDataset(DatasetBase):
 
         return label_map, label_list, bev_bbox, future_waypoints, future_waypoints_st
 
+    def get_gaussian_noise(self, idx, mu=0, sigma=1 ,drop=0):
+        gaussian_noise_list = []
+
+        sample_token = list(self._gt.keys())[idx]
+        ego_pose_token, calib_token  = self.get_egopose_calib_token(sample_token)
+        sample_annotation = self._helper.get_annotations_for_sample(sample_token)
+        calib_data = self._nuscenes.get('calibrated_sensor', calib_token)
+        ego_data = self._nuscenes.get('ego_pose', ego_pose_token)
+
+        # 对sample中的每个annotation进行坐标变换(global -> lidar)
+        for annotation in sample_annotation:
+            if 'vehicle' not in annotation['category_name']:    # 只针对vehicle类型增加噪声
+                continue
+            if np.random.choice([0, 1], p=[1 - drop, drop]):    # 按概率进行筛选模拟FN
+                continue
+
+            anno_token = annotation['token']
+            ann = self._nuscenes.get('sample_annotation', anno_token)
+            center, yaw = self.transform_gobal2metric(ann['translation'], ann['rotation'], calib_data, ego_data)
+    
+            x = center[1]
+            y = - center[0]
+            log_l = np.log(np.array(ann['size'])[1])
+            log_w = np.log(np.array(ann['size'])[0])
+            cos_t, sin_t = np.cos(yaw), np.sin(yaw)
+
+            # Add Gaussian Noise
+            x += random.gauss(mu, sigma)
+            y += random.gauss(mu, sigma)
+            log_l += random.gauss(mu, sigma)
+            log_w += random.gauss(mu, sigma)
+            cos_t += random.gauss(mu, sigma)
+            sin_t += random.gauss(mu, sigma)
+
+            l = np.exp(log_l)
+            w = np.exp(log_w)
+            theta = math.atan2(sin_t, cos_t)
+
+            corners, _ = self.get_corners([x, y, l, w, theta], use_distribution=False)
+            gaussian_noise_list.append(corners)
+
+        return gaussian_noise_list
+
+    def get_multimodal_noise(self, idx, drop=0):
+        # fig = plt.figure(figsize=(5, 1.7))
+        # ax = fig.add_subplot(111)
+
+        # x = np.linspace(-60, 80, 1000)
+        # logprob = self.GMM[1].score_samples(x.reshape(-1, 1))
+        # pdf = np.exp(logprob)
+        # ax.plot(x, pdf, '-k')
+        # plt.show()
+
+        multimodal_noise_list = []
+
+        sample_token = list(self._gt.keys())[idx]
+        ego_pose_token, calib_token  = self.get_egopose_calib_token(sample_token)
+        sample_annotation = self._helper.get_annotations_for_sample(sample_token)
+        calib_data = self._nuscenes.get('calibrated_sensor', calib_token)
+        ego_data = self._nuscenes.get('ego_pose', ego_pose_token)
+
+        # 对sample中的每个annotation进行坐标变换(global -> lidar)
+        for annotation in sample_annotation:
+            if 'vehicle' not in annotation['category_name']:    # 只针对vehicle类型增加噪声
+                continue
+            if np.random.choice([0, 1], p=[1 - drop, drop]):    # 按概率进行筛选模拟FN
+                continue
+
+            anno_token = annotation['token']
+            ann = self._nuscenes.get('sample_annotation', anno_token)
+            center, yaw = self.transform_gobal2metric(ann['translation'], ann['rotation'], calib_data, ego_data)
+    
+            x = center[1]
+            y = - center[0]
+            log_l = np.log(np.array(ann['size'])[1])
+            log_w = np.log(np.array(ann['size'])[0])
+            cos_t, sin_t = np.cos(yaw), np.sin(yaw)
+
+            # Add Gaussian Noise
+            x += self.GMM[0].sample(1)[0]
+            y += self.GMM[1].sample(1)[0]
+            log_l += self.GMM[2].sample(1)[0]
+            log_w += self.GMM[3].sample(1)[0]
+            cos_t += self.GMM[4].sample(1)[0]
+            sin_t += self.GMM[5].sample(1)[0]
+
+            l = np.exp(log_l)
+            w = np.exp(log_w)
+            theta = math.atan2(sin_t, cos_t)
+
+            corners, _ = self.get_corners([x, y, l, w, theta], use_distribution=False)
+            multimodal_noise_list.append(corners)
+
+        return multimodal_noise_list
+
     def reg_target_transform(self, label_map):
         '''
         Inputs are numpy arrays (not tensors!)
@@ -592,7 +741,7 @@ class FpSceneOccNuScenesDataset(DatasetBase):
     def __getitem__(self, index):
         assert index <= self.__len__()
 
-        # HD_map = self.get_HDmap(index)   # 此处index定义随意定义
+        HD_map = self.get_HDmap(index)   # 此处index定义随意定义
         occupancy, occlusion = self.get_occupancy_and_occlusion(index)       # 实际的推理过程中，使用该方法 
         label_map, label_list, bev_bbox, future_waypoints, future_waypoints_st = self.get_label(index)
         bev_bbox = bev_bbox[:25] + [0,]*(25-len(bev_bbox)) # 将数量固定为5个bbox(5*5)，超出的截取，不足的补零
@@ -600,7 +749,7 @@ class FpSceneOccNuScenesDataset(DatasetBase):
         data_dict = {
             'occupancy': occupancy,
             'occlusion': occlusion,
-            # 'HDmap': HD_map,
+            'HDmap': HD_map,
             'label_map': label_map,
             'label_list': label_list,
             'bev_bbox': bev_bbox,

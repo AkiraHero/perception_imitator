@@ -1,13 +1,13 @@
 dataset:
-  config_file: dataset/scene_occ_nuscenes.yaml
-  dataset_class: BaselineNuscenesDataset
+  config_file: dataset/actornoise_nuscenes.yaml
+  dataset_class: ActorNoiseNuscenesDataset
 logging:
   ckpt_eph_interval: 50
   path: ./output/log
   suffix: 'baseline'
 model:
-  config_file: model/multi_scale_cnn_cls.yaml
-  model_class: MultiScaleCNNCls
+  config_file: model/actor_noise.yaml
+  model_class: PredictHead
 training:
   device: 'cuda:0'
   epoch: 100
@@ -19,7 +19,7 @@ training:
     paras:
       lr: 0.001
     type: Adam
-  trainer_class: BaselineTrainer
+  trainer_class: ActornoiseTrainer
   actor_feature_size: 256
   tensorboard_out_path: default
   FP_distribution: False
