@@ -139,5 +139,5 @@ class GMWaeGanTrainer(TrainerBase):
                     f'Loss-categ: {loss_cat.item():.4f}',
                 )
 
-            if epoch % 10 == 0:
+            if epoch % 1 == 0:
                 torch.save(self.model.generator.state_dict(), './output/GM_gen_fp/' + str(epoch) + ".pt")

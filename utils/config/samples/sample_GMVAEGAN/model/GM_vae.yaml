@@ -7,5 +7,5 @@ paras:
       model_class: MultiScaleCNN
   input_dim: 8800
   gaussian_size: 64
-  num_classes: 5
-  output_dim: 50
+  num_classes: 10
+  output_dim: 25

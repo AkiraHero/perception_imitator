@@ -50,7 +50,7 @@ class FpSceneOccNuScenesDataset(DatasetBase):
         self._car_std = config['paras']['waypoints_std']['car']
         self._pedestrian_std = config['paras']['waypoints_std']['pedestrian']
 
-        self._nuscenes = NuScenes(self._nuscenes_type, dataroot="D:/PJLAB_Experiment/Data/nuScenes", verbose=False)
+        self._nuscenes = NuScenes(self._nuscenes_type, dataroot="E:/PJLAB_Experiment/Data/nuScenes", verbose=False)
         self._helper = PredictHelper(self._nuscenes)
 
         gt_file_name = "mini_sim_model_gt.pkl" if self._nuscenes_type == "v1.0-mini" else "sim_model_gt.pkl"
@@ -85,10 +85,11 @@ class FpSceneOccNuScenesDataset(DatasetBase):
         }
         return d[clss]
 
-    def standardize(self, bev_bbox, mean, std):
-        norm_bev_bbox = (np.array(bev_bbox) - mean) / std
+    def standardize(self, arr, mean, std):
+        return (np.array(arr) - mean) / std
 
-        return norm_bev_bbox
+    def unstandardize(self, norm_arr, mean, std):
+        return norm_arr * std + mean
 
     def get_corners(self, bbox, use_distribution):
         if  use_distribution == True:
@@ -591,15 +592,15 @@ class FpSceneOccNuScenesDataset(DatasetBase):
     def __getitem__(self, index):
         assert index <= self.__len__()
 
-        HD_map = self.get_HDmap(index)   # 此处index定义随意定义
+        # HD_map = self.get_HDmap(index)   # 此处index定义随意定义
         occupancy, occlusion = self.get_occupancy_and_occlusion(index)       # 实际的推理过程中，使用该方法 
         label_map, label_list, bev_bbox, future_waypoints, future_waypoints_st = self.get_label(index)
-        bev_bbox = bev_bbox[:50] + [0,]*(50-len(bev_bbox)) # 将数量固定为10个bbox(10*5)，超出的截取，不足的补零
+        bev_bbox = bev_bbox[:25] + [0,]*(25-len(bev_bbox)) # 将数量固定为5个bbox(5*5)，超出的截取，不足的补零
 
         data_dict = {
             'occupancy': occupancy,
             'occlusion': occlusion,
-            'HDmap': HD_map,
+            # 'HDmap': HD_map,
             'label_map': label_map,
             'label_list': label_list,
             'bev_bbox': bev_bbox,
