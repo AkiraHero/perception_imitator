@@ -1,10 +1,10 @@
 dataset_class: ActorNoiseNuscenesDataset
 paras:
-  nuscenes_type: v1.0-mini
-  batch_size: 8
+  nuscenes_type: v1.0-trainval
+  batch_size: 32
   data_root: ./data
   for_train: True
-  num_workers: 2
+  num_workers: 0
   shuffle: True
   sweeps_len: 1
   FP_distribution: False

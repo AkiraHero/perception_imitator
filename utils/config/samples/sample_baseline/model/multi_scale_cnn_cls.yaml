@@ -8,5 +8,5 @@ paras:
       config_file: model/perception_head.yaml
       model_class: DetectHead
     prediction:
-      config_file: model/prediction_head_old_version.yaml
-      model_class: MLP
+      config_file: model/prediction_head.yaml
+      model_class: PredictHead

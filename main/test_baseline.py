@@ -8,6 +8,7 @@ import numpy as np
 from tqdm import tqdm
 import time
 import random
+import pickle
 from factory.model_factory import ModelFactory
 from factory.dataset_factory import DatasetFactory
 from utils.config.Configuration import Configuration
@@ -70,6 +71,7 @@ def eval_one(model, loss_func, config, loader, image_id, device, plot=False, ver
         center_index[1] = np.clip(center_index[1], 0, features.shape[-1] - 1)
 
         actor_features = features[:, center_index[0], center_index[1]].permute(1, 0)
+        actor_features = torch.nn.functional.interpolate(actor_features.unsqueeze(1), size=256, mode='linear').squeeze(1)
         pred_way_points_st = model.prediction(actor_features).view(actor_features.shape[0], 6, 2).cpu().numpy()     # 标准化预测结果
 
         pred_way_points = []
@@ -168,7 +170,7 @@ if __name__ == '__main__':
     perception_loss_func = CustomLoss(config.training_config['loss_function'])
     prediction_loss_func = SmoothL1Loss()
 
-    paras = torch.load("C:/Users/Sunyyyy/Desktop/Study/PJLAB/Code/ADModel_Pro/output/baseline_kitti_range/50.pt")
+    paras = torch.load("./output/baseline/30.pt")
     model.load_model_paras(paras)
     model.set_decode(True)
     model.set_eval()
@@ -178,16 +180,16 @@ if __name__ == '__main__':
     data_loader = dataset.get_data_loader()
 
     with torch.no_grad():
-        # Eval one pic
-        for id in range(1500,1650):
-            num_gt, num_pred, scores, pred_image, pred_match, loss, ADE, FDE= \
-            eval_one(model, perception_loss_func, config, data_loader, image_id=id, device="cuda", plot=True)
+        # # Eval one pic
+        # for id in range(1500,1650):
+        #     num_gt, num_pred, scores, pred_image, pred_match, loss, ADE, FDE= \
+        #     eval_one(model, perception_loss_func, config, data_loader, image_id=id, device="cuda", plot=True)
 
-            TP = (pred_match != -1).sum()
-            print("Loss: {:.4f}".format(loss))
-            print("Precision: {:.2f}".format(TP/num_pred))
-            print("Recall: {:.2f}".format(TP/num_gt))
+        #     TP = (pred_match != -1).sum()
+        #     print("Loss: {:.4f}".format(loss))
+        #     print("Precision: {:.2f}".format(TP/num_pred))
+        #     print("Recall: {:.2f}".format(TP/num_gt))
             
-        # # Eval all
-        # metrics, precisions, recalls, log_images = eval_dataset(config, model, perception_loss_func, data_loader, device="cuda", e_range='all')
-        # print(metrics)
+        # Eval all
+        metrics, precisions, recalls, log_images = eval_dataset(config, model, perception_loss_func, data_loader, device="cuda", e_range='all')
+        print(metrics)

@@ -32,7 +32,7 @@ class ActornoiseTrainer(TrainerBase):
         self.model.set_device(self.device)
 
         self.data_loader = self.dataset.get_data_loader()
-        writer = SummaryWriter(log_dir=self.tensorboard_out_path)
+        # writer = SummaryWriter(log_dir=self.tensorboard_out_path)
 
         # Training Loop
         self.global_step = 0
@@ -61,9 +61,9 @@ class ActornoiseTrainer(TrainerBase):
                 loss.backward()
                 self.optimizer.step()
 
-                writer.add_scalar("loss_all", loss, self.global_step)
-                writer.add_scalar("cls", cls_loss, self.global_step)
-                writer.add_scalar("reg", reg_loss, self.global_step)
+                # writer.add_scalar("loss_all", loss, self.global_step)
+                # writer.add_scalar("cls", cls_loss, self.global_step)
+                # writer.add_scalar("reg", reg_loss, self.global_step)
 
                 print(
                         f'Epoch: [{epoch + 1:0>{len(str(epoch))}}/{self.max_epoch}]',

@@ -273,7 +273,7 @@ def compute_ADE(gts, preds):
         for j in range(len(gts[-1])):
             dis = np.linalg.norm(gts[i][j] - preds[i][j])
             one_ADE = one_ADE + dis
-        all_ADE = all_ADE + one_ADE
+        all_ADE = all_ADE + one_ADE / len(gts[-1])
 
     ADE = all_ADE / len(gts)
 

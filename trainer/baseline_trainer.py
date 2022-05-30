@@ -149,7 +149,7 @@ class BaselineTrainer(TrainerBase):
         self.model.set_device(self.device)
 
         
-        # For test
+        # # For test
         # pretext_model = torch.load("C:/Users/Sunyyyy/Desktop/Study/PJLAB/Code/ADModel_Pro/output/baseline_kitti_range/50.pt")
         # model2_dict = self.model.state_dict()
         # state_dict = {k:v for k,v in pretext_model.items() if k in model2_dict.keys()}
@@ -160,7 +160,7 @@ class BaselineTrainer(TrainerBase):
         self.perception_loss_func.to(self.device)
         self.prediction_loss_func.to(self.device)
         self.data_loader = self.dataset.get_data_loader()
-        writer = SummaryWriter(log_dir=self.tensorboard_out_path)
+        # writer = SummaryWriter(log_dir=self.tensorboard_out_path)
 
         # Training Loop
         self.global_step = 0
@@ -193,7 +193,7 @@ class BaselineTrainer(TrainerBase):
                 decoded_pred = self.model.corner_decoder(pred.detach()[:, 1:,...])     # 将pred_map解码为可获取corner的形式
                 batch_actor_features, pred_match_list = self.get_batch_actor_features_and_match_list(pred.detach(), decoded_pred, features.detach(), label_list)
 
-                if epoch < 3:   # 为了助于收敛，前三轮只对cls分支进行参数回传
+                if epoch < 2:   # 为了助于收敛，前三轮只对cls分支进行参数回传
                     loss = cls_loss
                     pred_loss = np.NaN
                 else: 
@@ -223,11 +223,11 @@ class BaselineTrainer(TrainerBase):
                 loss.backward()
                 self.optimizer.step()
 
-                writer.add_scalar("loss_all", loss, self.global_step)
-                writer.add_scalar("loss_perc", perc_loss, self.global_step)
-                writer.add_scalar("cls", cls, self.global_step)
-                writer.add_scalar("loc", loc, self.global_step)
-                writer.add_scalar("loss_pred", pred_loss, self.global_step)
+                # writer.add_scalar("loss_all", loss, self.global_step)
+                # writer.add_scalar("loss_perc", perc_loss, self.global_step)
+                # writer.add_scalar("cls", cls, self.global_step)
+                # writer.add_scalar("loc", loc, self.global_step)
+                # writer.add_scalar("loss_pred", pred_loss, self.global_step)
 
                 print(
                         f'Epoch: [{epoch + 1:0>{len(str(epoch))}}/{self.max_epoch}]',
@@ -239,9 +239,9 @@ class BaselineTrainer(TrainerBase):
                         f'Loss-Prediction: {pred_loss:.4f}',
                     )
 
-            if epoch % 5 == 0:
+            if epoch % 2 == 0:
                 torch.save(self.model.state_dict(), \
-                            'D:/1Pjlab/ADModel_Pro/output/baseline/' + str(epoch) + ".pt")
+                            './output/baseline/' + str(epoch) + ".pt")
 
 
 

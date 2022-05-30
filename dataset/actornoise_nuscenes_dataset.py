@@ -60,6 +60,10 @@ class ActorNoiseNuscenesDataset(DatasetBase):
         with open(gt_file, 'rb') as f:
             self._gt = pickle.load(f)   # 加载target detection model和target prediction model下的真值
 
+        # 加载预处理的数据便于快速训练
+        with open(os.path.join(self._data_root, "nuscenes_preprocess_data.pkl"), 'rb') as f:
+            self._preprocess_data = pickle.load(f) 
+
     def get_data_loader(self, distributed=False):
         return DataLoader(
             dataset=self,
@@ -81,6 +85,125 @@ class ActorNoiseNuscenesDataset(DatasetBase):
             'Cyclist': 3
         }
         return d[clss]
+    
+    def get_points_in_a_rotated_box(self, corners, label_shape=[352, 400]):
+        def minY(x0, y0, x1, y1, x):
+            if x0 == x1:
+                # vertical line, y0 is lowest
+                return int(math.floor(y0))
+
+            m = (y1 - y0) / (x1 - x0)
+
+            if m >= 0.0:
+                # lowest point is at left edge of pixel column
+                return int(math.floor(y0 + m * (x - x0)))
+            else:
+                # lowest point is at right edge of pixel column
+                return int(math.floor(y0 + m * ((x + 1.0) - x0)))
+
+
+        def maxY(x0, y0, x1, y1, x):
+            if x0 == x1:
+                # vertical line, y1 is highest
+                return int(math.ceil(y1))
+
+            m = (y1 - y0) / (x1 - x0)
+
+            if m >= 0.0:
+                # highest point is at right edge of pixel column
+                return int(math.ceil(y0 + m * ((x + 1.0) - x0)))
+            else:
+                # highest point is at left edge of pixel column
+                return int(math.ceil(y0 + m * (x - x0)))
+
+
+        # view_bl, view_tl, view_tr, view_br are the corners of the rectangle
+        view = [(corners[i, 0], corners[i, 1]) for i in range(4)]
+
+        pixels = []
+
+        # find l,r,t,b,m1,m2
+        l, m1, m2, r = sorted(view, key=lambda p: (p[0], p[1]))
+        b, t = sorted([m1, m2], key=lambda p: (p[1], p[0]))
+
+        lx, ly = l
+        rx, ry = r
+        bx, by = b
+        tx, ty = t
+        m1x, m1y = m1
+        m2x, m2y = m2
+
+        xmin = 0
+        ymin = 0
+        xmax = label_shape[1]
+        ymax = label_shape[0]
+
+        # inward-rounded integer bounds
+        # note that we're clamping the area of interest to (xmin,ymin)-(xmax,ymax)
+        lxi = max(int(math.ceil(lx)), xmin)
+        rxi = min(int(math.floor(rx)), xmax)
+        byi = max(int(math.ceil(by)), ymin)
+        tyi = min(int(math.floor(ty)), ymax)
+
+        x1 = lxi
+        x2 = rxi
+
+        for x in range(x1, x2):
+            xf = float(x)
+
+            if xf < m1x:
+                # Phase I: left to top and bottom
+                y1 = minY(lx, ly, bx, by, xf)
+                y2 = maxY(lx, ly, tx, ty, xf)
+
+            elif xf < m2x:
+                if m1y < m2y:
+                    # Phase IIa: left/bottom --> top/right
+                    y1 = minY(bx, by, rx, ry, xf)
+                    y2 = maxY(lx, ly, tx, ty, xf)
+
+                else:
+                    # Phase IIb: left/top --> bottom/right
+                    y1 = minY(lx, ly, bx, by, xf)
+                    y2 = maxY(tx, ty, rx, ry, xf)
+
+            else:
+                # Phase III: bottom/top --> right
+                y1 = minY(bx, by, rx, ry, xf)
+                y2 = maxY(tx, ty, rx, ry, xf)
+
+            y1 = max(y1, byi)
+            y2 = min(y2, tyi)
+
+            for y in range(y1, y2):
+                pixels.append((x, y))
+
+        return pixels
+
+    def update_label_map(self, map, bev_corners, reg_target):
+        label_corners = self.transform_metric2label(bev_corners, ratio=self._geometry['ratio'], \
+                                                    base_height=self._geometry['label_shape'][0],\
+                                                    base_width=self._geometry['label_shape'][1] / 2)
+
+        points = self.get_points_in_a_rotated_box(label_corners, self._geometry['label_shape'])
+
+        for p in points:
+            label_x = min(p[0], self._geometry['label_shape'][0] - 1)
+            label_y = min(p[1], self._geometry['label_shape'][1] - 1)
+            metric_x, metric_y = self.trasform_label2metric(np.array(p), ratio=self._geometry['ratio'], \
+                                                            base_height=self._geometry['label_shape'][0],\
+                                                            base_width=self._geometry['label_shape'][1] / 2)
+            actual_reg_target = np.copy(reg_target)
+            actual_reg_target[2] = reg_target[2] - metric_x
+            actual_reg_target[3] = reg_target[3] - metric_y
+            for i in range(4, len(reg_target)):
+                actual_reg_target[i] = np.log(reg_target[i]) 
+
+            map[label_x, label_y, 0] = 1.0
+            if self._distribution_setting == True:
+                map[label_x, label_y, 1:12] = actual_reg_target
+            else:
+                map[label_x, label_y, 1:7] = actual_reg_target
 
     def standardize(self, arr, mean, std):
         return (np.array(arr) - mean) / std
@@ -114,6 +237,31 @@ class ActorNoiseNuscenesDataset(DatasetBase):
         bev_corners[3, 1] = y + l/2 * np.sin(yaw) + w/2 * np.cos(yaw)
 
         return bev_corners, reg_target
+
+    def update_label_map(self, map, bev_corners, reg_target):
+        label_corners = self.transform_metric2label(bev_corners, ratio=self._geometry['ratio'], \
+                                                    base_height=self._geometry['label_shape'][0],\
+                                                    base_width=self._geometry['label_shape'][1] / 2)
+
+        points = self.get_points_in_a_rotated_box(label_corners, self._geometry['label_shape'])
+
+        for p in points:
+            label_x = min(p[0], self._geometry['label_shape'][0] - 1)
+            label_y = min(p[1], self._geometry['label_shape'][1] - 1)
+            metric_x, metric_y = self.trasform_label2metric(np.array(p), ratio=self._geometry['ratio'], \
+                                                            base_height=self._geometry['label_shape'][0],\
+                                                            base_width=self._geometry['label_shape'][1] / 2)
+            actual_reg_target = np.copy(reg_target)
+            actual_reg_target[2] = reg_target[2] - metric_x
+            actual_reg_target[3] = reg_target[3] - metric_y
+            for i in range(4, len(reg_target)):
+                actual_reg_target[i] = np.log(reg_target[i]) 
+
+            map[label_x, label_y, 0] = 1.0
+            if self._distribution_setting == True:
+                map[label_x, label_y, 1:12] = actual_reg_target
+            else:
+                map[label_x, label_y, 1:7] = actual_reg_target
 
     def transform_gobal2metric(self, ann_translation, ann_rotation, calib_data, ego_data):
         # global frame
@@ -377,15 +525,128 @@ class ActorNoiseNuscenesDataset(DatasetBase):
             else:
                 label.append([0, 0, 0, 0, 0, 0])
 
-        GT_bbox = np.stack(GT_bbox, axis=0)
-        label = np.stack(label, axis=0)
-
+        if len(GT_bbox) != 0:
+            GT_bbox = np.stack(GT_bbox, axis=0)
+            label = np.stack(label, axis=0)
+        else:
+            GT_bbox = np.array(GT_bbox)
+            label = np.array(label)
         return GT_bbox, label
+
+    def get_label(self, idx):
+        
+        if self._distribution_setting == True:
+            label_map = np.zeros((self._geometry['label_shape'][0], self._geometry['label_shape'][1], 12), dtype=np.float32)
+        else:
+            label_map = np.zeros((self._geometry['label_shape'][0], self._geometry['label_shape'][1], 7), dtype=np.float32)
+        label_list = []
+        bev_bbox = []
+        all_future_waypoints = []
+        all_future_waypoints_st = []
+
+        ### 此部分暂未适应target_dt & target_pred数据集###
+        if self._distribution_setting == True:  
+            fp_bboxes = self._fp_distribution['fp_mean'][idx]   # 将均值作为期望的被检测框参数
+            fp_var = self._fp_distribution['fp_var'][idx]
+            fp_num = self._fp_distribution['fp_num'][idx]       # 用于筛选，总共392次实验，认为这一组中FP数量少于5的不作为FP
+            scores = self._fp_distribution['fp_score'][idx]
+
+            for i in range(len(fp_bboxes)):     # 处理一个FP框
+                if fp_num[i] >= 50 and scores[i] >= 0.3:
+                    x = fp_bboxes[i][0]
+                    y = fp_bboxes[i][1]
+                    l = fp_bboxes[i][3]
+                    w = fp_bboxes[i][4]
+                    yaw = fp_bboxes[i][6]
+
+                    x_var = fp_var[i][0]
+                    y_var = fp_var[i][1]
+                    l_var = fp_var[i][3]
+                    w_var = fp_var[i][4]
+                    yaw_var = fp_var[i][6]
+
+                    corners, reg_target = self.get_corners([x, y, l, w, yaw, x_var, y_var, l_var, w_var, yaw_var], use_distribution=True)
+                    self.update_label_map(label_map, corners, reg_target)
+                    label_list.append(corners)
+        #####################################################
+
+        else:
+            sample_token = list(self._gt.keys())[idx]
+            ego_pose_token, calib_token= self.get_egopose_calib_token(sample_token)
+
+            all_gt_data = self._gt[sample_token]
+            calib_data = self._nuscenes.get('calibrated_sensor', calib_token)        
+            ego_data = self._nuscenes.get('ego_pose', ego_pose_token)
+
+            for gt_data in all_gt_data:
+                det_data = gt_data["detection"]
+                pred_data = gt_data["prediction"]
+                if det_data['detection_name'] != 'car': 
+                    continue
+                if det_data['detection_score'] >= 0.05:
+                    # Step 1: 获取lidar坐标系下的检测结果，分为训练所用的label_map和测试所用label_list
+                    center, yaw = self.transform_gobal2metric(det_data['translation'], det_data['rotation'], calib_data, ego_data)
+
+                    x = center[1]
+                    y = - center[0]
+                    l = np.array(det_data['size'])[1]
+                    w = np.array(det_data['size'])[0]
+                    theta = yaw
+
+                    # Step 2:获取雷达坐标系下的预测结果
+                    global_waypoints = pred_data['future_waypoints']
+                    global_waypoints = np.insert(global_waypoints, 2, values=0, axis=1)
+                    lidar_waypoints = []
+                    lidar_waypoints_st = [] # 存储标准化结果
+                    for i in range(global_waypoints.shape[0]):
+                        center, _ = self.transform_gobal2metric(global_waypoints[i], np.zeros(4), calib_data, ego_data)
+                        lidar_waypoints.append([center[1], - center[0]])
+                        
+                        # 在lidar视图上对轨迹点进行标准化，以当前位置为mean
+                        if det_data['detection_name'] == 'car':         # 针对car类别，std选40
+                            lidar_waypoints_st.append([(center[1] - x)/self._car_std, (- center[0] - y)/self._car_std])
+                        else:                                           # 针对pedestrian类别，std选1
+                            lidar_waypoints_st.append([(center[1] - x)/self._pedestrian_std, (- center[0] - y)/self._pedestrian_std])
+                    lidar_waypoints = np.array(lidar_waypoints)
+                    lidar_waypoints_st = np.array(lidar_waypoints_st)
+
+                    # 进行筛选
+                    if x < self._geometry['W1'] or x > self._geometry['W2'] or y < self._geometry['L1'] or y > self._geometry['L2'] :
+                        continue    # 由于在目前检测结果是在范围 [-51.2, -51.2, -5.0, 51.2, 51.2, 3.0]下进行的，因此需要筛选
+                    if abs(lidar_waypoints[1][0] - lidar_waypoints[0][0]) > 10 or abs(lidar_waypoints[1][1] - lidar_waypoints[0][1]) > 10:
+                        continue    # 速度在x或y分量上超过20m/s(10m/0.5s)则被筛掉
+
+                    # 整理获取label
+                    corners, reg_target = self.get_corners([x, y, l, w, theta], use_distribution=False)
+                    self.update_label_map(label_map, corners, reg_target)
+                    label_list.append(corners)
+
+                    car_mean = np.array([17.45, -6.92, 4.72, 1.93, -1.11])
+                    car_std = np.array([10.43, 8.26, 0.26, 0.077, 1.61])
+                    norm_bev_bbox_para = self.standardize([x, y, l, w, theta], car_mean, car_std)
+                    bev_bbox.extend(norm_bev_bbox_para)
+
+                    all_future_waypoints.append(lidar_waypoints)
+                    all_future_waypoints_st.append(lidar_waypoints_st)
+
+            if len(all_future_waypoints) != 0:
+                future_waypoints = np.stack(all_future_waypoints, axis=0)
+                future_waypoints_st = np.stack(all_future_waypoints_st, axis=0)
+            else:
+                future_waypoints = np.array([])
+                future_waypoints_st = np.array([])
+
+        assert len(label_list) == future_waypoints.shape[0]         # label_list应该和future_waypoints一一对应
+
+        return label_map, label_list, bev_bbox, future_waypoints, future_waypoints_st
 
     def __getitem__(self, index):
         assert index <= self.__len__()
 
-        occupancy, occlusion = self.get_occupancy_and_occlusion(index)       # 实际的推理过程中，使用该方法
+        # occupancy, occlusion = self.get_occupancy_and_occlusion(index)       # 实际的推理过程中，使用该方法\
+        occupancy = self._preprocess_data[index]['occupancy']
+        occlusion = self._preprocess_data[index]['occlusion']
+
         GT_bbox, label = self.process_sample(index)     # label: num of GT_bbox * 6(dectect or not, errx, erry, errw, errh errtheta)
 
         data_dict = {
@@ -427,6 +688,8 @@ class ActorNoiseNuscenesDataset(DatasetBase):
                 elif key in ['GT_bbox', 'label']:
                     values = []
                     for value in val:
+                        if value.ndim == 1:
+                            continue
                         values.append(value)
                     ret[key] = np.concatenate(values, axis=0)
                 else:

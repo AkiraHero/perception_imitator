@@ -228,7 +228,8 @@ class StaticLayerRasterizer(StaticLayerRepresentation):
         self.maps = load_all_maps(helper)
 
         if not layer_names:
-            layer_names = ['drivable_area', 'ped_crossing', 'walkway']
+            # layer_names = ['drivable_area', 'ped_crossing', 'walkway']
+            layer_names = ['drivable_area']
         self.layer_names = layer_names
 
         if not colors:
