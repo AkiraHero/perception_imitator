@@ -170,7 +170,7 @@ if __name__ == '__main__':
     perception_loss_func = CustomLoss(config.training_config['loss_function'])
     prediction_loss_func = SmoothL1Loss()
 
-    paras = torch.load("./output/baseline/30.pt")
+    paras = torch.load("./output/centerpoint_baseline/90.pt")
     model.load_model_paras(paras)
     model.set_decode(True)
     model.set_eval()
@@ -181,7 +181,7 @@ if __name__ == '__main__':
 
     with torch.no_grad():
         # # Eval one pic
-        # for id in range(1500,1650):
+        # for id in range(0, 1):
         #     num_gt, num_pred, scores, pred_image, pred_match, loss, ADE, FDE= \
         #     eval_one(model, perception_loss_func, config, data_loader, image_id=id, device="cuda", plot=True)
 

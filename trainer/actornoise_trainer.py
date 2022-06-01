@@ -35,6 +35,8 @@ class ActornoiseTrainer(TrainerBase):
         # writer = SummaryWriter(log_dir=self.tensorboard_out_path)
 
         # Training Loop
+        print("device: ", self.device)
+        print("Start training!")
         self.global_step = 0
         for epoch in range(self.max_epoch):
             self.epoch = epoch
@@ -65,13 +67,13 @@ class ActornoiseTrainer(TrainerBase):
                 # writer.add_scalar("cls", cls_loss, self.global_step)
                 # writer.add_scalar("reg", reg_loss, self.global_step)
 
-                print(
-                        f'Epoch: [{epoch + 1:0>{len(str(epoch))}}/{self.max_epoch}]',
-                        f'Step: [{step}/{len(self.data_loader)}]',
-                        f'Loss-All: {loss:.4f}',
-                        f'cls: {cls_loss:.4f}',
-                        f'reg: {reg_loss:.4f}',
-                    )
+            print(
+                    f'Epoch: [{epoch + 1:0>{len(str(epoch))}}/{self.max_epoch}]',
+                    # f'Step: [{step}/{len(self.data_loader)}]',
+                    f'Loss-All: {loss:.4f}',
+                    f'cls: {cls_loss:.4f}',
+                    f'reg: {reg_loss:.4f}',
+                )
 
             if epoch % 5 == 0:
                 torch.save(self.model.state_dict(), \

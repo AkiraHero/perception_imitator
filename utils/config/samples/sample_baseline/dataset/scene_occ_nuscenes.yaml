@@ -7,6 +7,7 @@ paras:
   num_workers: 0
   shuffle: True
   sweeps_len: 1
+  interface: False
   FP_distribution: False
   geometry:
     L1: -40

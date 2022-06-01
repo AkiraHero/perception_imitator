@@ -34,7 +34,7 @@ def eval_one(index, model, dataset, data_loader, plot=False):    # eval_oneè¿›è¡
     cls = Sigmoid(pred[:, 0])
     reg = pred[:, 1:]
 
-    mask = cls > 0.6
+    mask = cls > 0.5
     actornoise_box = input[mask] + reg[mask]
     actornoise_list = []
 
@@ -107,7 +107,7 @@ if __name__ == '__main__':
     # instantiating all modules by non-singleton factory
     model = ModelFactory.get_model(config.model_config)
 
-    paras = torch.load("./output/actor_noise/85.pt")
+    paras = torch.load("./output/centerpoint_actor_noise/95.pt")
     model.load_model_paras(paras)
     model.set_eval()
     model.set_device("cuda:0")

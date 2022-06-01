@@ -55,7 +55,10 @@ class ActorNoiseNuscenesDataset(DatasetBase):
         self._nuscenes = NuScenes(self._nuscenes_type, dataroot="E:/PJLAB_Experiment/Data/nuScenes", verbose=False)
         self._helper = PredictHelper(self._nuscenes)
 
-        gt_file_name = "mini_sim_model_gt.pkl" if self._nuscenes_type == "v1.0-mini" else "sim_model_gt.pkl"
+        if self._is_train == True:
+            gt_file_name = "mini_sim_model_gt.pkl" if self._nuscenes_type == "v1.0-mini" else "centerpoint_sim_model_gt.pkl"
+        else:
+            gt_file_name = "mini_sim_model_gt_test.pkl" if self._nuscenes_type == "v1.0-mini" else "centerpoint_sim_model_gt_test.pkl"
         gt_file = os.path.join(self._data_root, gt_file_name)
         with open(gt_file, 'rb') as f:
             self._gt = pickle.load(f)   # 加载target detection model和target prediction model下的真值

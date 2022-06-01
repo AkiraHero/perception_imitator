@@ -48,31 +48,31 @@ class BaselineNuscenesDataset(DatasetBase):
         self._geometry = config['paras']['geometry']
         self._sweeps_len = config['paras']['sweeps_len']
         assert self._sweeps_len > 0 and isinstance(self._sweeps_len, int)
+        self._is_interface = config['paras']['interface']
         self._distribution_setting = config['paras']['FP_distribution']
         self._car_std = config['paras']['waypoints_std']['car']
         self._pedestrian_std = config['paras']['waypoints_std']['pedestrian']
 
-        self._nuscenes = NuScenes(self._nuscenes_type, dataroot="E:/PJLAB_Experiment/Data/nuScenes", verbose=False)
-        self._helper = PredictHelper(self._nuscenes)
+        if self._is_interface:
+            self._gt = []
+        else:
+            self._nuscenes = NuScenes(self._nuscenes_type, dataroot="E:/PJLAB_Experiment/Data/nuScenes", verbose=False)
+            self._helper = PredictHelper(self._nuscenes)
 
-        # 加载预处理的数据便于快速训练
-        with open(os.path.join(self._data_root, "nuscenes_preprocess_data.pkl"), 'rb') as f:
-            self._preprocess_data = pickle.load(f) 
+            # # 加载预处理的数据便于快速训练
+            # with open(os.path.join(self._data_root, "nuscenes_preprocess_data.pkl"), 'rb') as f:
+            #     self._preprocess_data = pickle.load(f) 
+            if self._is_train == True:
+                gt_file_name = "mini_sim_model_gt.pkl" if self._nuscenes_type == "v1.0-mini" else "centerpoint_sim_model_gt.pkl"
+            else:
+                gt_file_name = "mini_sim_model_gt_test.pkl" if self._nuscenes_type == "v1.0-mini" else "centerpoint_sim_model_gt_test.pkl"
+            gt_file = os.path.join(self._data_root, gt_file_name)
+            with open(gt_file, 'rb') as f:
+                self._gt = pickle.load(f)   # 加载target detection model和target prediction model下的真值
 
-        gt_file_name = "mini_sim_model_gt.pkl" if self._nuscenes_type == "v1.0-mini" else "sim_model_gt.pkl"
-        gt_file = os.path.join(self._data_root, gt_file_name)
-        with open(gt_file, 'rb') as f:
-            self._gt = pickle.load(f)   # 加载target detection model和target prediction model下的真值
-
-        # 获取所有DT和GT x, y, logl, logw, cost, sint的误差数组，用于后续使用高斯混合分布进行逼近
-        self.GMM = self.get_box_error_GMM(8)
-
-
-        # if self._distribution_setting == True:
-        #     fp_distribution_name = os.path.join(self._data_root, "fp_distribution.pkl")     # 存储的是所有实验得到FP的各个参数的均值和方差
-        #     with open(fp_distribution_name, 'rb') as f:
-        #         self._fp_distribution = pickle.load(f)   # 存储的是所有实验得到FP的各个参数的均值和方差
-
+            # 获取所有DT和GT x, y, logl, logw, cost, sint的误差数组，用于后续使用高斯混合分布进行逼近
+            self.GMM = self.get_box_error_GMM(8)
+            
     def get_data_loader(self, distributed=False):
         return DataLoader(
             dataset=self,
@@ -746,11 +746,11 @@ class BaselineNuscenesDataset(DatasetBase):
     def __getitem__(self, index):
         assert index <= self.__len__()
 
-        # HD_map = self.get_HDmap(index)   # 此处index定义随意定义
-        # occupancy, occlusion = self.get_occupancy_and_occlusion(index)       # 实际的推理过程中，使用该方法 
-        occupancy = self._preprocess_data[index]['occupancy']
-        occlusion = self._preprocess_data[index]['occlusion']
-        HD_map = self._preprocess_data[index]['HDmap']
+        HD_map = self.get_HDmap(index)   # 此处index定义随意定义
+        occupancy, occlusion = self.get_occupancy_and_occlusion(index)       # 实际的推理过程中，使用该方法 
+        # occupancy = self._preprocess_data[index]['occupancy']
+        # occlusion = self._preprocess_data[index]['occlusion']
+        # HD_map = self._preprocess_data[index]['HDmap']
 
         label_map, label_list, bev_bbox, future_waypoints, future_waypoints_st = self.get_label(index)
         bev_bbox = bev_bbox[:25] + [0,]*(25-len(bev_bbox)) # 将数量固定为5个bbox(5*5)，超出的截取，不足的补零
