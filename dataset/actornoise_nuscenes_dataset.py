@@ -56,7 +56,7 @@ class ActorNoiseNuscenesDataset(DatasetBase):
         self._helper = PredictHelper(self._nuscenes)
 
         if self._is_train == True:
-            gt_file_name = "mini_sim_model_gt.pkl" if self._nuscenes_type == "v1.0-mini" else "centerpoint_sim_model_gt.pkl"
+            gt_file_name = "mini_sim_model_gt.pkl" if self._nuscenes_type == "v1.0-mini" else "pointpillar_sim_model_gt.pkl"
         else:
             gt_file_name = "mini_sim_model_gt_test.pkl" if self._nuscenes_type == "v1.0-mini" else "centerpoint_sim_model_gt_test.pkl"
         gt_file = os.path.join(self._data_root, gt_file_name)
@@ -515,7 +515,8 @@ class ActorNoiseNuscenesDataset(DatasetBase):
             GT_bbox.append([gt_x, gt_y, gt_l, gt_w, gt_theta])
             if anno_token in all_dt_match_token:
                 dt_idx = all_dt_match_token.index(anno_token)
-
+                
+                # get detection results
                 det_data = all_dt_data[dt_idx]["detection"]
                 center, yaw = self.transform_gobal2metric(det_data['translation'], det_data['rotation'], calib_data, ego_data)
                 dt_x = center[1]
@@ -524,9 +525,27 @@ class ActorNoiseNuscenesDataset(DatasetBase):
                 dt_w = np.array(det_data['size'])[0]
                 dt_theta = yaw
 
-                label.append([1, dt_x-gt_x, dt_y-gt_y, dt_l-gt_l, dt_w-gt_w, dt_theta-gt_theta]) 
+                # get prediction results
+                pred_data = all_dt_data[dt_idx]["prediction"]
+                global_waypoints = pred_data['future_waypoints']
+                global_waypoints = np.insert(global_waypoints, 2, values=0, axis=1)
+                lidar_waypoints = []
+                lidar_waypoints_st = [] # 存储标准化结果
+                for i in range(global_waypoints.shape[0]):
+                    center, _ = self.transform_gobal2metric(global_waypoints[i], np.zeros(4), calib_data, ego_data)
+                    lidar_waypoints.extend([center[1], - center[0]])
+                    
+                    # 在lidar视图上对轨迹点进行标准化，以当前位置为mean
+                    if det_data['detection_name'] == 'car':         # 针对car类别，std选40
+                        lidar_waypoints_st.extend([(center[1] - dt_x)/self._car_std, (- center[0] - dt_y)/self._car_std])
+                    else:                                           # 针对pedestrian类别，std选1
+                        lidar_waypoints_st.extend([(center[1] - dt_x)/self._pedestrian_std, (- center[0] - dt_y)/self._pedestrian_std])
+
+                temp_label = [1, dt_x-gt_x, dt_y-gt_y, dt_l-gt_l, dt_w-gt_w, dt_theta-gt_theta]
+                temp_label.extend(lidar_waypoints_st)
+                label.append(temp_label)
             else:
-                label.append([0, 0, 0, 0, 0, 0])
+                label.append(18 * [0])
 
         if len(GT_bbox) != 0:
             GT_bbox = np.stack(GT_bbox, axis=0)
@@ -646,9 +665,9 @@ class ActorNoiseNuscenesDataset(DatasetBase):
     def __getitem__(self, index):
         assert index <= self.__len__()
 
-        # occupancy, occlusion = self.get_occupancy_and_occlusion(index)       # 实际的推理过程中，使用该方法\
-        occupancy = self._preprocess_data[index]['occupancy']
-        occlusion = self._preprocess_data[index]['occlusion']
+        occupancy, occlusion = self.get_occupancy_and_occlusion(index)       # 实际的推理过程中，使用该方法\
+        # occupancy = self._preprocess_data[index]['occupancy']
+        # occlusion = self._preprocess_data[index]['occlusion']
 
         GT_bbox, label = self.process_sample(index)     # label: num of GT_bbox * 6(dectect or not, errx, erry, errw, errh errtheta)
 

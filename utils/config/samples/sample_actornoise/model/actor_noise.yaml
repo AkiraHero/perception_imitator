@@ -3,4 +3,6 @@ paras:
   input_size: 5
   hidden_layer: 128
   init_group_num: 4
-  fin_layer: 6
+  cls_layer: 1
+  box_layer: 5
+  waypoint_layer: 12

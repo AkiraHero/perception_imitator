@@ -11,6 +11,9 @@ class PredictHead(ModelBase):
         self._hidden_layer = config['paras']['hidden_layer']
         self._group_num = config['paras']['init_group_num']
         self._final_layer = config['paras']['fin_layer']
+        # self._cls_layer = config['paras']['cls_layer']
+        # self._box_layer = config['paras']['box_layer']
+        # self._waypoint_layer = config['paras']['waypoint_layer']
 
         self.init_fc = nn.Sequential(
             nn.Linear(self._input_size, self._hidden_layer),
@@ -31,6 +34,9 @@ class PredictHead(ModelBase):
         )
 
         self.final_fc = nn.Linear(self._hidden_layer, self._final_layer)
+        # self.cls_fc = nn.Linear(self._hidden_layer, self._cls_layer)
+        # self.box_fc = nn.Linear(self._hidden_layer, self._box_layer)
+        # self.waypoint_fc = nn.Linear(self._hidden_layer, self._waypoint_layer)
 
     def forward(self, x):
         x = self.init_fc(x)
@@ -43,6 +49,12 @@ class PredictHead(ModelBase):
         x = self.final_fc(x)
 
         return x
+
+        # cls = self.cls_fc(x)
+        # box = self.box_fc(x)
+        # waipoint = self.waypoint_fc(x)
+
+        # return cls, box, waipoint
 
     @staticmethod
     def check_config(config):

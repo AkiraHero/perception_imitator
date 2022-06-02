@@ -51,15 +51,17 @@ class ActornoiseTrainer(TrainerBase):
                 input = data['GT_bbox']
                 label = data['label']
                 cls_label = label[:, 0]
-                reg_label = label[:, 1:]
+                box_label = label[:, 1:6]
+                waypoint_label = label[:, 6:]
 
                 self.model.zero_grad()
-                pred = self.model(input)
+                cls, box, waypoint = self.model(input)
 
-                cls_loss = self.cls_criterion(pred[:, 0], cls_label)
-                reg_loss = self.reg_criterion(pred[:, 1:][cls_label.bool()], reg_label[cls_label.bool()])
+                cls_loss = self.cls_criterion(cls.squeeze(), cls_label)
+                box_loss = self.reg_criterion(box[cls_label.bool()], box_label[cls_label.bool()])
+                waypoint_loss =self.reg_criterion(waypoint[cls_label.bool()], waypoint_label[cls_label.bool()])
 
-                loss = cls_loss + reg_loss
+                loss = cls_loss + box_loss + waypoint_loss
                 loss.backward()
                 self.optimizer.step()
 
@@ -72,7 +74,8 @@ class ActornoiseTrainer(TrainerBase):
                     # f'Step: [{step}/{len(self.data_loader)}]',
                     f'Loss-All: {loss:.4f}',
                     f'cls: {cls_loss:.4f}',
-                    f'reg: {reg_loss:.4f}',
+                    f'box: {box_loss:.4f}',
+                    f'waypoint: {waypoint_loss:.4f}',
                 )
 
             if epoch % 5 == 0:
