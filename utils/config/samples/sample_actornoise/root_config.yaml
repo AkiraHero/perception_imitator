@@ -1,6 +1,6 @@
 dataset:
-  config_file: dataset/actornoise_nuscenes.yaml
-  dataset_class: ActorNoiseNuscenesDataset
+  config_file: dataset/actornoise_carla.yaml
+  dataset_class: ActorNoiseCarlaDataset
 logging:
   ckpt_eph_interval: 50
   path: ./output/log
@@ -10,7 +10,7 @@ model:
   model_class: PredictHead
 training:
   device: 'cuda:0'
-  epoch: 100
+  epoch: 300
   loss_function:
     num_classes: 1
     alpha: 2.0

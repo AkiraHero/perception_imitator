@@ -1,6 +1,6 @@
 dataset:
-  config_file: dataset/scene_occ_nuscenes.yaml
-  dataset_class: BaselineNuscenesDataset
+  config_file: dataset/scene_occ_carla.yaml
+  dataset_class: BaselineCarlaDataset
 logging:
   ckpt_eph_interval: 50
   path: ./output/log

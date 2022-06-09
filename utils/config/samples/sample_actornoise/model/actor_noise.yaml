@@ -1,6 +1,6 @@
 name: actor_noise
 paras:
-  input_size: 5
+  input_size: 7
   hidden_layer: 128
   init_group_num: 4
   cls_layer: 1

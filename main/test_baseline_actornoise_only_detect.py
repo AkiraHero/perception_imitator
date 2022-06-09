@@ -24,11 +24,11 @@ warnings.filterwarnings("ignore")
 def eval_one(index, model, dataset, data_loader, plot=False):    # eval_one进行单帧结果生成与指标计算
     data = data_loader.dataset[index]
     # occupancy = data['occupancy']
-    _, label_list, _, future_waypoints, future_waypoints_st = dataset.get_label(index)
+    _, label_list = dataset.get_only_detection_label(index)
 
     input = torch.from_numpy(data['GT_bbox']).float().cuda()
     if input.shape[0] == 0:
-        return 0, 0, [], [], None, None
+        return 0, 0, [], []
     cls, box, waypoint_st = model(input)
     waypoint_st = waypoint_st.view(waypoint_st.shape[0], 6, 2)
 
@@ -55,37 +55,14 @@ def eval_one(index, model, dataset, data_loader, plot=False):    # eval_one进�
     num_gt = len(label_list)
     num_pred = len(fade_score)
 
-    # Forward Prediction
-    match_mask = pred_match >= 0
-    index = [i for i in pred_match if i >= 0]
-    gt_way_points = future_waypoints[index]
-    gt_way_points_st = future_waypoints_st[index]
-
-    if len(waypoint_st) == 0:
-        ADE = None
-        FDE = None
-        pass
-    else:
-        pred_way_points = []
-
-        for i in range(len(waypoint_st)):
-            pred_way_points.append(waypoint_st[i] * 40 + actornoise_box[i][:2].cpu().numpy())
-        pred_way_points = np.stack(pred_way_points, axis=0)         # lidar坐标系下预测结果
-
-        # 进行ADE和FDE指标计算
-        ADE = compute_ADE(gt_way_points, pred_way_points[match_mask])
-        FDE = compute_FDE(gt_way_points, pred_way_points[match_mask])
-
     if plot == True:
         # Visualization
         plot_bev(occupancy, label_list, window_name='GT')
         plot_bev(occupancy, actornoise_list, window_name='Actornoise')
 
-    return num_gt, num_pred, fade_score, pred_match, ADE, FDE
+    return num_gt, num_pred, fade_score, pred_match
 
 def eval_dataset(model, dataset, data_loader, e_range='all'):
-    ADE_sum = 0
-    FDE_sum = 0
     total_num = len(dataset)
 
     img_list = range(total_num)
@@ -101,16 +78,9 @@ def eval_dataset(model, dataset, data_loader, e_range='all'):
     with torch.no_grad():
         for image_id in tqdm(img_list):
             #tic = time.time()
-            num_gt, num_pred, scores, pred_match, ADE, FDE = \
-                eval_one(image_id, model, dataset, data_loader, plot=False)
+            num_gt, num_pred, scores, pred_match = eval_one(image_id, model, dataset, data_loader, plot=False)
             gts += num_gt
             preds += num_pred
-            if ADE == None or FDE == None:
-                total_num -= 1
-                pass
-            else:
-                ADE_sum += ADE
-                FDE_sum += FDE
             all_scores.extend(list(scores))
             all_matches.extend(list(pred_match))
             
@@ -124,8 +94,6 @@ def eval_dataset(model, dataset, data_loader, e_range='all'):
     metrics['AP'] = AP
     metrics['Precision'] = precision
     metrics['Recall'] = recall
-    metrics['ADE'] = ADE_sum / total_num
-    metrics['FDE'] = FDE_sum / total_num
 
     return metrics, precisions, recalls
 
@@ -141,7 +109,7 @@ if __name__ == '__main__':
     # instantiating all modules by non-singleton factory
     model = ModelFactory.get_model(config.model_config)
 
-    paras = torch.load("./output/carla_actor_pp/899.pt")
+    paras = torch.load("./output/carla_pp_actor/399.pt")
     model.load_model_paras(paras)
     model.set_eval()
     model.set_device("cuda:0")

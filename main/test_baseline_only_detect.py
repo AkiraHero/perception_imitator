@@ -32,7 +32,7 @@ def eval_one(model, loss_func, config, loader, image_id, device, plot=False, ver
     input = torch.cat((occupancy, occlusion, HDmap), dim=0).float().to(device)
 
     # get label
-    label_map, label_list, _, future_waypoints, future_waypoints_st = loader.dataset.get_label(image_id)
+    label_map, label_list = loader.dataset.get_only_detection_label(image_id)
     label_map = torch.from_numpy(label_map).permute(2, 0, 1).unsqueeze_(0).to(device)
 
     # Forward Detection
@@ -45,43 +45,7 @@ def eval_one(model, loss_func, config, loader, image_id, device, plot=False, ver
     corners, scores = filter_pred(config, pred)
     gt_boxes = np.array(label_list)
     gt_match, pred_match, overlaps = compute_matches(gt_boxes,
-                                        corners, scores, iou_threshold=0.5)
-
-    # 根据检测匹配结果获取真值waypoints
-    mask = pred_match >= 0
-    index = [i for i in pred_match if i >= 0]
-    gt_way_points = future_waypoints[index]
-    gt_way_points_st = future_waypoints_st[index]
-
-    # Forward Prediction
-    if len(corners) == 0:
-        ADE = None
-        FDE = None
-        pass
-    else:
-        box_centers = np.mean(corners, axis=1)
-
-        center_index = - box_centers / 0.2      # 0.2为resolution
-        center_index[:, 0] += pred.shape[-2]
-        center_index[:, 1] += pred.shape[-1] / 2
-        center_index = np.round(center_index / 4).astype(int)        # 4为input_size/feature_size
-        
-        center_index = np.swapaxes(center_index, 1, 0)
-        center_index[0] = np.clip(center_index[0], 0, features.shape[-2] - 1)
-        center_index[1] = np.clip(center_index[1], 0, features.shape[-1] - 1)
-
-        actor_features = features[:, center_index[0], center_index[1]].permute(1, 0)
-        actor_features = torch.nn.functional.interpolate(actor_features.unsqueeze(1), size=256, mode='linear').squeeze(1)
-        pred_way_points_st = model.prediction(actor_features).view(actor_features.shape[0], 6, 2).cpu().numpy()     # 标准化预测结果
-
-        pred_way_points = []
-        for i in range(len(pred_way_points_st)):
-            pred_way_points.append(pred_way_points_st[i] * 40 + box_centers[i])
-        pred_way_points = np.stack(pred_way_points, axis=0)         # lidar坐标系下预测结果
-
-        # 进行ADE和FDE指标计算
-        ADE = compute_ADE(gt_way_points, pred_way_points[mask])
-        FDE = compute_FDE(gt_way_points, pred_way_points[mask])
+                                        corners, scores, iou_threshold=0.7)
 
     num_gt = len(label_list)
     num_pred = len(scores)
@@ -99,12 +63,10 @@ def eval_one(model, loss_func, config, loader, image_id, device, plot=False, ver
         plot_bev(input_np_1, corners, window_name='Prediction2')
         plot_label_map(cls_pred.cpu().numpy())
 
-    return num_gt, num_pred, scores, pred_image, pred_match, loss.item(), ADE, FDE
+    return num_gt, num_pred, scores, pred_image, pred_match, loss.item()
 
 def eval_dataset(config, model, loss_func, loader, device, e_range='all'):
     loss_sum = 0
-    ADE_sum = 0
-    FDE_sum = 0
     total_num = len(loader.dataset)
 
     img_list = range(total_num)
@@ -123,16 +85,11 @@ def eval_dataset(config, model, loss_func, loader, device, e_range='all'):
     with torch.no_grad():
         for image_id in tqdm(img_list):
             #tic = time.time()
-            num_gt, num_pred, scores, pred_image, pred_match, loss, ADE, FDE= \
+            num_gt, num_pred, scores, pred_image, pred_match, loss = \
                 eval_one(model, loss_func, config, loader, image_id, device, plot=False)
             gts += num_gt
             preds += num_pred
             loss_sum += loss
-            if ADE == None or FDE == None:
-                pass
-            else:
-                ADE_sum += ADE
-                FDE_sum += FDE
             all_scores.extend(list(scores))
             all_matches.extend(list(pred_match))
 
@@ -151,8 +108,6 @@ def eval_dataset(config, model, loss_func, loader, device, e_range='all'):
     metrics['Precision'] = precision
     metrics['Recall'] = recall
     metrics['loss'] = loss_sum / total_num
-    metrics['ADE'] = ADE_sum / total_num
-    metrics['FDE'] = FDE_sum / total_num
 
     return metrics, precisions, recalls, log_images
 
@@ -170,7 +125,7 @@ if __name__ == '__main__':
     perception_loss_func = CustomLoss(config.training_config['loss_function'])
     prediction_loss_func = SmoothL1Loss()
 
-    paras = torch.load("./output/carla_pp/199.pt")
+    paras = torch.load("./output/carla_pvrcnn_only_detect/229.pt")
     model.load_model_paras(paras)
     model.set_decode(True)
     model.set_eval()

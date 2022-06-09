@@ -231,9 +231,9 @@ class BaselineTrainer(TrainerBase):
                 # writer.add_scalar("loc", loc, self.global_step)
                 # writer.add_scalar("loss_pred", pred_loss, self.global_step)
 
-            print(
+                print(
                     f'Epoch: [{epoch + 1:0>{len(str(epoch))}}/{self.max_epoch}]',
-                    # f'Step: [{step}/{len(self.data_loader)}]',
+                    f'Step: [{step}/{len(self.data_loader)}]',
                     f'Loss-All: {loss:.4f}',
                     f'Loss-Perception: {perc_loss:.4f}',
                     f'cls: {cls:.4f}',

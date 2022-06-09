@@ -23,7 +23,8 @@ warnings.filterwarnings("ignore")
 def eval_one_gaussian(index, dataset, data_loader, plot=False):    # eval_one进行单帧结果生成与指标计算
     data = data_loader.dataset[index]
     occupancy = data['occupancy']
-    _, label_list, _, _, _ = dataset.get_label(index)
+    # _, label_list, _, _, _ = dataset.get_label(index)
+    _, label_list = dataset.get_only_detection_label(index)
 
     ######################
     # Add Gaussian Noise #
