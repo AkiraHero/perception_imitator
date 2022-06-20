@@ -1,0 +1,23 @@
+dataset_class: BaselineNuscenesDataset
+paras:
+  nuscenes_type: v1.0-trainval
+  batch_size: 16
+  data_root: ./data
+  for_train: True
+  num_workers: 0
+  shuffle: True
+  sweeps_len: 1
+  interface: False
+  FP_distribution: False
+  geometry:
+    L1: -40
+    L2: 40
+    W1: 0.0
+    W2: 70.4
+    label_shape:
+    - 352
+    - 400
+    ratio: 0.2
+  waypoints_std:
+    car: 40
+    pedestrian: 1

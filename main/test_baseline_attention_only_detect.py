@@ -36,10 +36,17 @@ def eval_one(model, loss_func, config, loader, image_id, device, plot=False, ver
     label_map = torch.from_numpy(label_map).permute(2, 0, 1).unsqueeze_(0).to(device)
 
     # Forward Detection
-    pred, features = model(input.unsqueeze(0))
-    loss, _, _, _ = loss_func(pred, label_map)
+    pred, _, hard_att_mask = model(input.unsqueeze(0))
+    # hard_att_mask = (soft_att_mask > 0.2).long()
+
+    loss, _, _, _ = loss_func(pred, label_map, hard_att_mask)
     pred.squeeze_(0)
-    features.squeeze_(0)
+    hard_att_mask.squeeze_()
+
+    # plt.imshow(hard_att_mask.cpu())
+    # plt.show()
+    
+    # pred[0] = pred[0] * hard_att_mask
     cls_pred = pred[0, ...]
 
     corners, scores = filter_pred(config, pred)
@@ -58,10 +65,10 @@ def eval_one(model, loss_func, config, loader, image_id, device, plot=False, ver
 
     if plot == True:
         # Visualization
-        # plot_bev(input_np_2, label_list, window_name='GT')
+        plot_bev(input_np_1, label_list, window_name='GT')
         # plot_bev(input_np_2, corners, window_name='Prediction1')
         # plot_bev(input_np_1, corners, window_name='Prediction2')
-        plot_label_map(cls_pred.cpu().numpy())
+        # plot_label_map(cls_pred.cpu().numpy())
 
     return num_gt, num_pred, scores, pred_image, pred_match, loss.item()
 
@@ -123,9 +130,8 @@ if __name__ == '__main__':
     # instantiating all modules by non-singleton factory
     model = ModelFactory.get_model(config.model_config)
     perception_loss_func = CustomLoss(config.training_config['loss_function'])
-    prediction_loss_func = SmoothL1Loss()
 
-    paras = torch.load("./output/baseline_pos_embd/80.pt")
+    paras = torch.load("./output/baseline_attention/55.pt")
     model.load_model_paras(paras)
     model.set_decode(True)
     model.set_eval()

@@ -69,6 +69,48 @@ class GumbelSoftmax(nn.Module):
     y = self.gumbel_softmax(logits, temperature, hard)
     return logits, prob, y
 
+  # Sample from the Gumbel-Softmax distribution and optionally discretize.
+class CNNGumbelSoftmax(nn.Module):
+
+  def __init__(self):
+    super(CNNGumbelSoftmax, self).__init__()
+     
+  def sample_gumbel(self, shape, is_cuda=False, eps=1e-20):
+    U = torch.rand(shape)
+    if is_cuda:
+      U = U.cuda()
+    return -torch.log(-torch.log(U + eps) + eps)
+
+  def gumbel_softmax_sample(self, logits, temperature):
+    y = torch.log(logits + 1e-20) + self.sample_gumbel(logits.size(), logits.is_cuda)
+    return F.softmax(y / temperature, dim=-1)
+
+  def gumbel_softmax(self, logits, temperature, hard=False):
+    """
+    ST-gumple-softmax
+    input: [*, n_class]
+    return: flatten --> [*, n_class] an one-hot vector
+    """
+    #categorical_dim = 10
+    y = self.gumbel_softmax_sample(logits, temperature)
+
+    if not hard:
+        return y
+
+    shape = y.size()
+    _, ind = y.max(dim=-1)
+    y_hard = torch.zeros_like(y).view(-1, shape[-1])
+    y_hard.scatter_(1, ind.view(-1, 1), 1)
+    y_hard = y_hard.view(*shape)
+    # Set gradients w.r.t. y_hard gradients w.r.t. y
+    y_hard = (y_hard - y).detach() + y
+    return y_hard 
+  
+  def forward(self, x, temperature=1.0, hard=False):
+    y = self.gumbel_softmax(x, temperature, hard)
+
+    return y
+
 # Sample from a Gaussian distribution
 class Gaussian(nn.Module):
   def __init__(self, in_dim, z_dim):

@@ -37,7 +37,7 @@ class CustomLoss(nn.Module):
         return F.binary_cross_entropy(input=x, target=y, reduction='mean')
 
 
-    def forward(self, preds, targets):
+    def forward(self, preds, targets, attention_mask=None):
         '''Compute loss between (loc_preds, loc_targets) and (cls_preds, cls_targets).
         Args:
           preds: (tensor)  cls_preds + reg_preds, sized[batch_size, 7, height, width]
@@ -86,6 +86,9 @@ class CustomLoss(nn.Module):
         # cls_loss = self.focal_loss(cls_preds, cls_targets) * self.alpha
         ################################################################
             cls_loss = self.cross_entropy(cls_preds, cls_targets) * self.alpha
+            # cls_loss = (0.9 * self.cross_entropy(attention_mask * cls_preds, cls_targets) + \
+            #             0.1 * self.cross_entropy(cls_preds, cls_targets)) * \
+            #             self.alpha
             cls = cls_loss.item()
             ################################################################
             # reg_loss = SmoothL1Loss(loc_preds, loc_targets)

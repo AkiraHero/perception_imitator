@@ -1,5 +1,5 @@
 name: multi_scale_cnn
 paras:
-  input_channel: 4
+  input_channel: 132
   one_feature_channel: 64
   add_attention: False
