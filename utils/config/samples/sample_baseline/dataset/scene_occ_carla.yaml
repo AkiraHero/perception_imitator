@@ -6,7 +6,7 @@ paras:
   num_workers: 0
   shuffle: True
   Town: All
-  target_model: pv_rcnn
+  target_model: pp
   sweeps_len: 1
   interface: False
   FP_distribution: False

@@ -246,9 +246,9 @@ class BaselineTrainer(TrainerBase):
                     # f'Loss-Prediction: {pred_loss:.4f}',
                 )
 
-            if epoch % 5 == 0:
+            if epoch % 10 == 0:
                 torch.save(self.model.state_dict(), \
-                            './output/baseline_pos_embd/' + str(epoch) + ".pt")
+                            './output/baseline_pose_low/' + str(epoch) + ".pt")
 
 
 

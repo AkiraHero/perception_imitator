@@ -50,27 +50,34 @@ class BaselineCarlaDataset(DatasetBase):
         self.label_path = os.path.join(self._data_root, "carla_new/label_2/")
         self.pose_path = os.path.join(self._data_root, "carla_new/pose/")
 
-        gt_file = os.path.join("./data", "carla_%s_sim_model_gt.pkl" %self._target_model)
-        with open(gt_file, 'rb') as f:
-            self._gt_all = pickle.load(f)   # 加载target detection model和target prediction model下的真值
-        random.seed(2021)
-        random.shuffle(self._gt_all)
-        offset = int(len(self._gt_all) * 0.8)
-        if self._is_train == True:
-            self._gt = self._gt_all[:offset]
-        else:
-            self._gt = self._gt_all[offset:]
+        # gt_file = os.path.join("./data", "carla_%s_sim_model_gt.pkl" %self._target_model)
+        # with open(gt_file, 'rb') as f:
+        #     self._gt_all = pickle.load(f)   # 加载target detection model和target prediction model下的真值
+        # random.seed(2022)
+        # random.shuffle(self._gt_all)
+        # offset = int(len(self._gt_all) * 0.8)
+        # if self._is_train == True:
+        #     self._gt = self._gt_all[:offset]
+        # else:
+        #     self._gt = self._gt_all[offset:]
+        
+        # # 获取所有DT和GT x, y, logl, logw, cost, sint的误差数组，用于后续使用高斯混合分布进行逼近
+        # self.GMM = self.get_box_error_GMM(8)
 
         self.world_offset, self.world_scale = None, None
         self.global_map, self.global_waypoint_map = self.get_global_map(self._town)                    # 获取世界地图
 
-        # 获取所有DT和GT x, y, logl, logw, cost, sint的误差数组，用于后续使用高斯混合分布进行逼近
-        self.GMM = self.get_box_error_GMM(8)
-
         # 获取检测结果
         detect_result_file = os.path.join("./data", "carla_%s_match_gt.pkl" %self._target_model)
         with open(detect_result_file, 'rb') as f:     # 加载检测结果
-            self.dt_results = pickle.load(f)
+            self.all_dt_results = pickle.load(f)
+        random.seed(2022)
+        random.shuffle(self.all_dt_results)
+        offset = int(len(self.all_dt_results) * 0.8)
+        if self._is_train == True:
+            self.dt_results = self.all_dt_results[:offset]
+        else:
+            self.dt_results = self.all_dt_results[offset:]
         self.test_frame = []
         for i in range(len(self.dt_results)):
             self.test_frame.append(self.dt_results[i]['frame_id'])
@@ -146,7 +153,7 @@ class BaselineCarlaDataset(DatasetBase):
                 'Town02': 5,
                 'Town03': 5,
                 'Town04': 5,
-                'Town05': 3,
+                'Town05': 5,
         }
         return offset[Town], scale[Town]
 
@@ -195,6 +202,22 @@ class BaselineCarlaDataset(DatasetBase):
                     ret, temp = cv2.threshold(temp, 0, 1, cv2.THRESH_BINARY)
                     waypoint = np.clip(waypoint + temp, 0, 1)
             return np.array(map), np.array(waypoint)
+
+    def frame2town(self, frame):
+        freme_id = int(frame)
+        if freme_id >= 7854 and freme_id <= 8740:
+            Town_name = 'Town01'
+        elif freme_id >= 6264 and freme_id <= 7852:
+            Town_name = 'Town02'
+        elif (freme_id >= 4386 and freme_id <= 6263) or (freme_id >= 13837 and freme_id <= 16418):
+            Town_name = 'Town03'
+        elif (freme_id >= 1861 and freme_id <= 4385) or (freme_id >= 12312 and freme_id <= 13836):
+            Town_name = 'Town04'
+        elif (freme_id >= 0 and freme_id <= 1852) or (freme_id >= 8741 and freme_id <= 12311):
+            Town_name = 'Town05'
+
+
+        return Town_name
 
     def world_to_pixel(self, location, scale, world_offset, offset=(0,0)):
         x = scale * (location[0] - world_offset[0])
@@ -398,7 +421,8 @@ class BaselineCarlaDataset(DatasetBase):
         sample_occupancy = np.zeros([pic_height, pic_width]).astype('int32')
         sample_occlusion = np.ones([pic_height, pic_width]).astype('int32')
 
-        frame_id = self._gt[idx]['frame_id']
+        # frame_id = self._gt[idx]['frame_id']
+        frame_id = self.test_frame[idx]
         label_file = open(os.path.join(self.label_path, "%s.txt" %frame_id)) 
 
         for line in label_file.readlines():  
@@ -562,8 +586,9 @@ class BaselineCarlaDataset(DatasetBase):
         meters_behind = self._geometry['W1']
         meters_ahead = self._geometry['W2']
 
-        frame_id = self._gt[idx]['frame_id']
-        Town_id = int(self._gt[idx]['Town'].replace('Town', ''))
+        # frame_id = self._gt[idx]['frame_id']
+        frame_id = self.test_frame[idx]
+        Town_id = int(self.frame2town(self.test_frame[idx]).replace('Town', ''))
         ego_pose = np.load(self.pose_path + '%s.npy' %frame_id)
         position = ego_pose[0:2]
         yaw = ego_pose[4] + 90
@@ -661,7 +686,7 @@ class BaselineCarlaDataset(DatasetBase):
         label_map = np.zeros((self._geometry['label_shape'][0], self._geometry['label_shape'][1], 7), dtype=np.float32)
         label_list = []
 
-        frame_id = self._gt[idx]['frame_id']
+        frame_id = self.test_frame[idx]
         dt_result_idx = self.test_frame.index(frame_id)
 
         for det_data in self.dt_results[dt_result_idx]['dt']:
@@ -770,14 +795,14 @@ class BaselineCarlaDataset(DatasetBase):
 
     def __getitem__(self, index):
         assert index <= self.__len__()
-        self.world_offset, self.world_scale = self.get_world_offset_and_scale(self._gt[index]['Town'])       # carla不同map由不同offset和scale
+        self.world_offset, self.world_scale = self.get_world_offset_and_scale(self.frame2town(self.test_frame[index]))      # carla不同map由不同offset和scale
 
         HD_map = self.get_HDmap(index)   # 此处index定义随意定义
         occupancy, occlusion = self.get_occupancy_and_occlusion(index)       # 实际的推理过程中，使用该方法 
 
-        label_map, label_list, bev_bbox, future_waypoints, future_waypoints_st = self.get_label(index)
-        bev_bbox = bev_bbox[:25] + [0,]*(25-len(bev_bbox)) # 将数量固定为5个bbox(5*5)，超出的截取，不足的补零
-        # label_map, label_list = self.get_only_detection_label(index)
+        # label_map, label_list, bev_bbox, future_waypoints, future_waypoints_st = self.get_label(index)
+        # bev_bbox = bev_bbox[:25] + [0,]*(25-len(bev_bbox)) # 将数量固定为5个bbox(5*5)，超出的截取，不足的补零
+        label_map, label_list = self.get_only_detection_label(index)
 
         data_dict = {
             'occupancy': occupancy,
@@ -785,15 +810,15 @@ class BaselineCarlaDataset(DatasetBase):
             'HDmap': HD_map,
             'label_map': label_map,
             'label_list': label_list,
-            'bev_bbox': bev_bbox,
-            'future_waypoints': future_waypoints,
-            'future_waypoints_st': future_waypoints_st
+            # 'bev_bbox': bev_bbox,
+            # 'future_waypoints': future_waypoints,
+            # 'future_waypoints_st': future_waypoints_st
         }
 
         return data_dict
 
     def __len__(self):
-        return len(self._gt)
+        return len(self.dt_results)
 
     @staticmethod
     def load_data_to_gpu(batch_dict):

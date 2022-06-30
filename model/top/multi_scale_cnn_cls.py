@@ -255,7 +255,10 @@ class MultiScaleCNNCls(ModelBase):
 
     def forward(self, x):
         if self.pos_encode:
-            pos_encoding = self.positionalencoding2d(128, 352, 400).unsqueeze(0).repeat(x.shape[0], 1, 1, 1).cuda()
+            # upnear = nn.UpsamplingNearest2d(scale_factor=16)    # 15*[22,25] = [352,400]
+            pos_encoding = self.positionalencoding2d(64,352,400).unsqueeze(0).repeat(x.shape[0], 1, 1, 1).cuda()
+            # pos_encoding = upnear(pos_encoding)
+
             x = torch.concat((x, pos_encoding), dim=1)
 
         if torch.is_tensor(self.backbone(x)): 

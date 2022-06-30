@@ -103,9 +103,9 @@ def non_max_suppression(boxes, scores, threshold):
 
     polygons = convert_format(boxes)
 
-    top = 64
+    top = 128
     # Get indicies of boxes sorted by scores (highest first)
-    ixs = scores.argsort()[::-1][:64]
+    ixs = scores.argsort()[::-1][:top]
 
     pick = []
     while len(ixs) > 0:
