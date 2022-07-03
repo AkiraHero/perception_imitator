@@ -7,6 +7,6 @@ paras:
     head:
       config_file: model/perception_head.yaml
       model_class: DetectHead
-    prediction: None
-    MMD: None
+    prediction: False
+    MMD: True
     position_encoding: True

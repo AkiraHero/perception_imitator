@@ -92,86 +92,8 @@ class Decoder(nn.Module):
 class MMD(nn.Module):
     def __init__(self):
         super(MMD, self).__init__()
-        self.ratio = 1/4  # 对原图进行的缩放比例，节省MMD计算量
-        self.conv = nn.Sequential(
-            nn.Conv2d(in_channels=1, out_channels=1, kernel_size=5, stride=4, padding=1),
-            nn.MaxPool2d(2),
-            nn.Sigmoid(),
-        )
-        self.img_norm = nn.Sigmoid()
 
-    def guassian_kernel(self, source, target, kernel_mul=2.0, kernel_num=5, fix_sigma=None):
-        '''
-        将源域数据和目标域数据转化为核矩阵，即上文中的K
-        Params: 
-            source: 源域数据（n * len(x))
-            target: 目标域数据（m * len(y))
-            kernel_mul: 
-            kernel_num: 取不同高斯核的数量
-            fix_sigma: 不同高斯核的sigma值
-        Return:
-            sum(kernel_val): 多个核矩阵之和
-        '''
-        n_samples = int(source.size()[0])+int(target.size()[0])# 求矩阵的行数，一般source和target的尺度是一样的，这样便于计算
-        total = torch.cat([source, target], dim=0)#将source,target按列方向合并
-        #将total复制（n+m）份
-        total0 = total.unsqueeze(0).expand(int(total.size(0)), int(total.size(0)), int(total.size(1)))
-        #将total的每一行都复制成（n+m）行，即每个数据都扩展成（n+m）份
-        total1 = total.unsqueeze(1).expand(int(total.size(0)), int(total.size(0)), int(total.size(1)))
-        #求任意两个数据之间的和，得到的矩阵中坐标（i,j）代表total中第i行数据和第j行数据之间的l2 distance(i==j时为0）
-        L2_distance = ((total0-total1)**2).sum(2) 
-        #调整高斯核函数的sigma值
-        if fix_sigma:
-            bandwidth = fix_sigma
-        else:
-            bandwidth = torch.sum(L2_distance.data) / (n_samples**2-n_samples)
-        #以fix_sigma为中值，以kernel_mul为倍数取kernel_num个bandwidth值（比如fix_sigma为1时，得到[0.25,0.5,1,2,4]
-        bandwidth /= kernel_mul ** (kernel_num // 2)
-        bandwidth_list = [bandwidth * (kernel_mul**i) for i in range(kernel_num)]
-        #高斯核函数的数学表达式
-        kernel_val = [torch.exp(-L2_distance / (bandwidth_temp + 1e-6)) for bandwidth_temp in bandwidth_list]
-        #得到最终的核矩阵
-        return sum(kernel_val)#/len(kernel_val)
-
-    def mmd_rbf(self, source, target, kernel_mul=2.0, kernel_num=5, fix_sigma=None):
-        '''
-        计算源域数据和目标域数据的MMD距离
-        Params: 
-            source: 源域数据（n * len(x))
-            target: 目标域数据（m * len(y))
-            kernel_mul: 
-            kernel_num: 取不同高斯核的数量
-            fix_sigma: 不同高斯核的sigma值
-        Return:
-            loss: MMD loss
-        '''
-        batch_size = int(source.size()[0])#一般默认为源域和目标域的batchsize相同
-        kernels = self.guassian_kernel(source, target,
-            kernel_mul=kernel_mul, kernel_num=kernel_num, fix_sigma=fix_sigma)
-        #根据式（3）将核矩阵分成4部分
-        XX = kernels[:batch_size, :batch_size]
-        YY = kernels[batch_size:, batch_size:]
-        XY = kernels[:batch_size, batch_size:]
-        YX = kernels[batch_size:, :batch_size]
-        loss = torch.mean(XX + YY - XY -YX)
-        return loss #因为一般都是n==m，所以L矩阵一般不加入计算
-
-    def get_features(self, images):
-        out_feats = []
-
-        # 对特征进行MMD
-        feat = self.conv(images)
-        out_feats.append(feat.contiguous().view(feat.size(0), -1))
-
-        # 对原始图缩放标准化后进行MMD
-        simp_img = nn.functional.interpolate(images, scale_factor=self.ratio, mode='bilinear', align_corners=False)
-        # simp_img = self.img_norm(simp_img)
-        out_feats.append(simp_img.contiguous().view(simp_img.size(0), -1))
-
-        return out_feats
-
-    @staticmethod
-    def compute_kernel(x, y):
+    def compute_kernel(self, x, y):
         x_size = x.size(0)
         y_size = y.size(0)
         dim = x.size(1)
@@ -181,27 +103,39 @@ class MMD(nn.Module):
         tiled_y = y.expand(x_size, y_size, dim)
         # expand does not allocate new memory
         kernel_input = (tiled_x - tiled_y).pow(2).mean(2)
-        
+      
         return torch.exp(-kernel_input) # (x_size, y_size)
 
     def forward(self, real, gen):
-        x = self.get_features(real)
-        y = self.get_features(gen)
+        bs = real.shape[0]
+        mask = (real[:,0,...] > 0)
 
-        mmd2 = 0.0
-        for i in range(len(x)):
-            mmd2 += self.mmd_rbf(x[i], y[i])
+        mmd = 0.0
+        for i in range(bs):
+            x = real[i, ..., mask[i]]
+            y = gen[i, ..., mask[i]]
 
-        return mmd2
+            for layer in range(x.shape[0] - 1):   # 针对除了cls外的每一层参数分别计算mmd，最后相加
+                X = x[layer + 1].unsqueeze(0)
+                Y = y[layer + 1].unsqueeze(0)
+                x_kernal = self.compute_kernel(X, X)
+                y_kernal = self.compute_kernel(Y, Y)
+                xy_kernal = self.compute_kernel(X, Y)
+
+                layer_mmd = y_kernal.mean() - 2 * xy_kernal.mean() + x_kernal.mean()
+                if math.isnan(layer_mmd):
+                    continue
+                mmd += layer_mmd
+        return mmd
 
 class MultiScaleCNNCls(ModelBase):
     def __init__(self, config):
         super(MultiScaleCNNCls, self).__init__()
         self.backbone = ModelFactory.ModelFactory.get_model(config['paras']['submodules']['backbone'])
         self.head = ModelFactory.ModelFactory.get_model(config['paras']['submodules']['head'])
-        if config['paras']['submodules']['prediction'] != "None":
+        if config['paras']['submodules']['prediction']:
             self.prediction = ModelFactory.ModelFactory.get_model(config['paras']['submodules']['prediction'])
-        if config['paras']['submodules']['MMD'] != "None":
+        if config['paras']['submodules']['MMD']:
             self.MMD = MMD()
         self.pos_encode = config['paras']['submodules']['position_encoding']
         

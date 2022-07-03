@@ -1,6 +1,6 @@
 dataset_class: BaselineCarlaDataset
 paras:
-  batch_size: 2
+  batch_size: 16
   data_root: E:/PJLAB_Experiment/Data/carla
   for_train: True
   num_workers: 0

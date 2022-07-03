@@ -125,7 +125,7 @@ if __name__ == '__main__':
     perception_loss_func = CustomLoss(config.training_config['loss_function'])
     prediction_loss_func = SmoothL1Loss()
 
-    paras = torch.load("./output/carla_pp_poseembed/best.pt")
+    paras = torch.load("./output/carla_pvrcnn_MMD/120.pt")
     model.load_model_paras(paras)
     model.set_decode(True)
     model.set_eval()

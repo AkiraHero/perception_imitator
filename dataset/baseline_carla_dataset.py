@@ -697,7 +697,7 @@ class BaselineCarlaDataset(DatasetBase):
             y = - det_data['location'][0]
             l = det_data['dimensions'][2]
             w = det_data['dimensions'][1]
-            theta = det_data['rotation_y']
+            theta = - np.pi - det_data['rotation_y']
 
             # 进行筛选
             if x < self._geometry['W1'] or x > self._geometry['W2'] or y < self._geometry['L1'] or y > self._geometry['L2'] :

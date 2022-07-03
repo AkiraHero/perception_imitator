@@ -10,5 +10,5 @@ paras:
     prediction:
       config_file: model/prediction_head.yaml
       model_class: PredictHead
-    MMD: None
+    MMD: False
     position_encoding: False

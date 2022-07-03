@@ -13,6 +13,7 @@ from utils.postprocess import non_max_suppression, compute_matches
 class BaselineMMDTrainer(TrainerBase):
     def __init__(self, config):
         super(BaselineMMDTrainer, self).__init__()
+        self.config = config
         self.max_epoch = config['epoch']
         self.optimizer_config = config['optimizer']
         self.device = torch.device(config['device'])
@@ -62,26 +63,28 @@ class BaselineMMDTrainer(TrainerBase):
                 ####################
                 input = torch.cat((occupancy, occlusion, HDmap), dim=1)    # 将场景描述共同输入
                 pred, _ = self.model(input)
-                # perc_loss, cls, loc, cls_loss = self.perception_loss_func(pred, label_map)
+                perc_loss, cls, loc, cls_loss = self.perception_loss_func(pred, label_map)
 
-                loss = self.model.MMD(label_map[:,0,...].unsqueeze(1), pred[:,0,...].unsqueeze(1))
+                mmd_loss = self.model.MMD(label_map, pred)
+
+                if epoch < 10:   # 为了助于收敛，前三轮只对cls分支进行参数回传
+                    loss = cls_loss
+                else:
+                    loss = perc_loss + mmd_loss * self.config['loss_function']['beta']
 
                 loss.backward()
                 self.optimizer.step()
-
-                # writer.add_scalar("loss_all", loss, self.global_step)
-                # writer.add_scalar("loss_perc", perc_loss, self.global_step)
-                # writer.add_scalar("cls", cls, self.global_step)
-                # writer.add_scalar("loc", loc, self.global_step)
-                # writer.add_scalar("loss_pred", pred_loss, self.global_step)
 
                 print(
                     f'Epoch: [{epoch + 1:0>{len(str(epoch))}}/{self.max_epoch}]',
                     f'Step: [{step}/{len(self.data_loader)}]',
                     f'Loss-All: {loss:.4f}',
+                    f'Loss-cls: {cls:.4f}',
+                    f'Loss-loc: {loc:.4f}',
+                    f'Loss-mmd: {mmd_loss:.4f}',
                 )
 
-            if epoch % 5 == 0:
+            if epoch % 10 == 0:
                 torch.save(self.model.state_dict(), \
                             './output/baseline_MMD/' + str(epoch) + ".pt")
 
