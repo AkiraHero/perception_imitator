@@ -45,7 +45,7 @@ def eval_one(model, loss_func, config, loader, image_id, device, plot=False, ver
     corners, scores = filter_pred(config, pred)
     gt_boxes = np.array(label_list)
     gt_match, pred_match, overlaps = compute_matches(gt_boxes,
-                                        corners, scores, iou_threshold=0.7)
+                                        corners, scores, iou_threshold=0.5)
 
     num_gt = len(label_list)
     num_pred = len(scores)
@@ -59,9 +59,9 @@ def eval_one(model, loss_func, config, loader, image_id, device, plot=False, ver
     if plot == True:
         # Visualization
         plot_bev(input_np_1, label_list, window_name='GT')
-        # plot_bev(input_np_2, corners, window_name='Prediction1')
+        plot_bev(input_np_2, corners, window_name='Prediction1')
         plot_bev(input_np_1, corners, window_name='Prediction2')
-        # plot_label_map(cls_pred.cpu().numpy())
+        plot_label_map(cls_pred.cpu().numpy())
 
     return num_gt, num_pred, scores, pred_image, pred_match, loss.item()
 
@@ -125,7 +125,7 @@ if __name__ == '__main__':
     perception_loss_func = CustomLoss(config.training_config['loss_function'])
     prediction_loss_func = SmoothL1Loss()
 
-    paras = torch.load("./output/carla_pvrcnn_MMD/120.pt")
+    paras = torch.load("./output/carla_pp_MMD/v2/MMD_pp_best.pt")
     model.load_model_paras(paras)
     model.set_decode(True)
     model.set_eval()

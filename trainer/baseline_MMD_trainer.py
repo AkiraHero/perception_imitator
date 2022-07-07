@@ -25,11 +25,21 @@ class BaselineMMDTrainer(TrainerBase):
         self.optimizer = None
         self.data_loader = None
         
+        self.coef_mmd = torch.nn.Parameter(torch.FloatTensor(1), requires_grad=True).cuda()
+        self.coef_mmd.data.fill_(0.0001)
+        
         pass
 
     def set_optimizer(self, optimizer_config):
         optimizer_ref = torch.optim.__dict__[self.optimizer_config['type']]
         self.optimizer = optimizer_ref(self.model.parameters(), **optimizer_config['paras'])
+
+    def l2_regularization(self, model, l2_alpha):
+        l2_loss = []
+        for module in model.modules():
+            if type(module) is nn.Conv2d:
+                l2_loss.append((module.weight ** 2).sum() / 2.0)
+        return l2_alpha * sum(l2_loss)
 
     def run(self):
         if not self.check_ready():
@@ -66,11 +76,12 @@ class BaselineMMDTrainer(TrainerBase):
                 perc_loss, cls, loc, cls_loss = self.perception_loss_func(pred, label_map)
 
                 mmd_loss = self.model.MMD(label_map, pred)
+                L2_regularization = self.l2_regularization(self.model, 0.001).cuda()
 
                 if epoch < 10:   # 为了助于收敛，前三轮只对cls分支进行参数回传
-                    loss = cls_loss
+                    loss = cls_loss + L2_regularization
                 else:
-                    loss = perc_loss + mmd_loss * self.config['loss_function']['beta']
+                    loss = perc_loss + self.coef_mmd * mmd_loss + L2_regularization  # 加入MMD和L2正则化
 
                 loss.backward()
                 self.optimizer.step()
@@ -78,10 +89,11 @@ class BaselineMMDTrainer(TrainerBase):
                 print(
                     f'Epoch: [{epoch + 1:0>{len(str(epoch))}}/{self.max_epoch}]',
                     f'Step: [{step}/{len(self.data_loader)}]',
-                    f'Loss-All: {loss:.4f}',
+                    f'Loss-All: {loss.item():.4f}',
                     f'Loss-cls: {cls:.4f}',
                     f'Loss-loc: {loc:.4f}',
                     f'Loss-mmd: {mmd_loss:.4f}',
+                    f'L2-regularization: {L2_regularization:.4f}'
                 )
 
             if epoch % 10 == 0:
