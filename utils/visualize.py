@@ -51,8 +51,9 @@ def plot_bev(velo_array, label_list = None, scores = None, window_name='GT', sav
         cv2.imwrite(save_path, intensity)
         cv2.waitKey(0)
     else:
-        cv2.imshow(window_name, intensity)
-        cv2.waitKey(0)
+        # cv2.imshow(window_name, intensity)
+        # cv2.waitKey(0)
+        pass
 
     return intensity
 

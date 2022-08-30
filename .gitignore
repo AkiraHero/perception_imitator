@@ -1,9 +1,9 @@
 *__pycache__
 output/*
 default/*
-data/nuscenes/*
 .idea
 *.pt
 *.png
 *.jpg
 *.pkl
+*.json

@@ -1,6 +1,6 @@
 dataset:
-  config_file: dataset/scene_occ_carla.yaml
-  dataset_class: BaselineCarlaDataset
+  config_file: dataset/scene_occ_nuscenes.yaml
+  dataset_class: BaselineNuscenesOnlyDetectDataset
 logging:
   ckpt_eph_interval: 50
   path: ./output/log
@@ -10,19 +10,22 @@ model:
   model_class: MultiScaleCNNCls
 training:
   device: 'cuda:0'
-  epoch: 100
+  epoch: 500
   loss_function:
     num_classes: 1
+    iou: True
+    error: True
     alpha: 2.0
     beta: 0.01
+    gamma: 0.1
   optimizer:
     paras:
       lr: 0.001
     type: Adam
-  trainer_class: BaselineTrainer
+  trainer_class: BaselineIOUTrainer
   actor_feature_size: 256
   tensorboard_out_path: default
   FP_distribution: False
 testing:
-  cls_threshold: 0.05
+  cls_threshold: 0.5
   nms_iou_threshold: 0.2

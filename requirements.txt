@@ -1,9 +1,14 @@
 numpy
 torch>=1.1
-numpy
 pyyaml
 torchvision
 matplotlib
 tensorboardX
 packaging
 scipy
+opencv-python
+pandas
+pyquaternion
+seaborn
+six
+tqdm

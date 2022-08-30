@@ -1,0 +1,9 @@
+name: detect_head
+paras:
+  input_size: 
+  - 192
+  - 88
+  - 100
+  mid_layer_num: 64
+  cls_channel: 1
+  reg_channel: 6

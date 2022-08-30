@@ -21,16 +21,13 @@ import warnings
 warnings.filterwarnings("ignore")
 
 def eval_one_gaussian(index, dataset, data_loader, plot=False):    # eval_one进行单帧结果生成与指标计算
-    data = data_loader.dataset[index]
-    occupancy = data['occupancy']
-    # _, label_list, _, _, _ = dataset.get_label(index)
     _, label_list = dataset.get_only_detection_label(index)
 
     ######################
     # Add Gaussian Noise #
     ######################
     gaussian_dist = [0, 0.1]    # Gaussian distribution
-    fn_rate = 0.5              # Target model's false negative
+    fn_rate = 0.4              # false negtive
     guassian_noise_list = dataset.get_gaussian_noise(index, mu=gaussian_dist[0], sigma=gaussian_dist[1], drop=fn_rate)
     fade_score = np.array(len(guassian_noise_list) * [1])
 
@@ -43,23 +40,17 @@ def eval_one_gaussian(index, dataset, data_loader, plot=False):    # eval_one进
     num_gt = len(label_list)
     num_pred = len(fade_score)
 
-    if plot == True:
-        # Visualization
-        plot_bev(occupancy, label_list, window_name='GT')
-        plot_bev(occupancy, guassian_noise_list, window_name='Gaussian')
-
     return num_gt, num_pred, fade_score, pred_match
 
 def eval_one_GM(index, dataset, data_loader, plot=False):    # eval_one进行单帧结果生成与指标计算
-    data = data_loader.dataset[index]
-    occupancy = data['occupancy']
-    _, label_list, _, _, _ = dataset.get_label(index)
+
+    _, label_list = dataset.get_only_detection_label(index)
 
     ########################
     # Add Multimodal Noise #
     ########################
-    fn_rate = 0.5             # Target model's false negative
-    multimodal_noise_list =  dataset.get_multimodal_noise(index, drop=fn_rate)
+    fn_rate = 0.4              # false negtive 
+    multimodal_noise_list = dataset.get_multimodal_noise(index, drop=fn_rate)
     fade_score = np.array(len(multimodal_noise_list) * [1])
 
     gt_boxes = np.array(label_list)
@@ -70,11 +61,6 @@ def eval_one_GM(index, dataset, data_loader, plot=False):    # eval_one进行单
 
     num_gt = len(label_list)
     num_pred = len(fade_score)
-
-    if plot == True:
-        # Visualization
-        plot_bev(occupancy, label_list, window_name='GT')
-        plot_bev(occupancy, multimodal_noise_list, window_name='MultiModel')
 
     return num_gt, num_pred, fade_score, pred_match
 
@@ -165,12 +151,21 @@ if __name__ == '__main__':
     dataset = DatasetFactory.get_dataset(config.dataset_config)
     data_loader = dataset.get_data_loader()
 
-    # get GT
-    index = 0
+    gaussian_ap = []
+    gaussian_recall = []
+    GM_ap = []
+    GM_recall = []
 
-    gaussian_metrics, _, _ = eval_dataset_gaussian(dataset, data_loader)
-    print(gaussian_metrics)
+    for i in range(10):
+        gaussian_metrics, _, _ = eval_dataset_gaussian(dataset, data_loader)
+        print(gaussian_metrics)
+        gaussian_ap.append(gaussian_metrics['AP'])
+        gaussian_recall.append(gaussian_metrics['Recall'])
 
-    GM_metrics, _, _ = eval_dataset_GM(dataset, data_loader)
-    print(GM_metrics)
-
+        GM_metrics, _, _ = eval_dataset_GM(dataset, data_loader)
+        print(GM_metrics)
+        GM_ap.append(GM_metrics['AP'])
+        GM_recall.append(GM_metrics['Recall'])
+    
+    print(np.array(gaussian_ap).mean(), np.array(gaussian_recall).mean())
+    print(np.array(GM_ap).mean(), np.array(GM_recall).mean())

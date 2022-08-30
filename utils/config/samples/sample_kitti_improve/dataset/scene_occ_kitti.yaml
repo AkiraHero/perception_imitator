@@ -1,11 +1,10 @@
-dataset_class: BaselineCarlaDataset
+dataset_class: BaselineKittiDataset
 paras:
-  batch_size: 16
-  data_root: E:/PJLAB_Experiment/Data/carla
+  batch_size: 32
+  data_root: ./data
   for_train: True
-  num_workers: 0
+  num_workers: 8
   shuffle: True
-  Town: All
   target_model: pp
   sweeps_len: 1
   interface: False
@@ -19,6 +18,3 @@ paras:
     - 352
     - 400
     ratio: 0.2
-  waypoints_std:
-    car: 40
-    pedestrian: 1

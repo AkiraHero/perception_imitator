@@ -186,10 +186,11 @@ class BaselineTrainer(TrainerBase):
                 # Train perception #
                 ####################
                 input = torch.cat((occupancy, occlusion, HDmap), dim=1)    # 将场景描述共同输入
+                # input = torch.cat((occupancy, occlusion), dim=1)    # 将场景描述共同输入
                 pred, features = self.model(input)
                 perc_loss, cls, loc, cls_loss = self.perception_loss_func(pred, label_map)
 
-                if epoch < 10:   # 为了助于收敛，前三轮只对cls分支进行参数回传
+                if epoch < 30:   # 为了助于收敛，前三轮只对cls分支进行参数回传
                     loss = cls_loss
                 else:
                     loss = perc_loss
@@ -239,16 +240,15 @@ class BaselineTrainer(TrainerBase):
                 print(
                     f'Epoch: [{epoch + 1:0>{len(str(epoch))}}/{self.max_epoch}]',
                     f'Step: [{step}/{len(self.data_loader)}]',
-                    f'Loss-All: {loss:.4f}',
-                    f'Loss-Perception: {perc_loss:.4f}',
-                    f'cls: {cls:.4f}',
-                    f'loc: {loc:.4f}',
+                    f'Loss-All: {loss.item():.4f}',
+                    f'Loss-cls: {cls:.4f}',
+                    f'Loss-loc: {loc:.4f}',
                     # f'Loss-Prediction: {pred_loss:.4f}',
                 )
 
             if epoch % 10 == 0:
                 torch.save(self.model.state_dict(), \
-                            './output/baseline_pose_low/' + str(epoch) + ".pt")
+                            './output/kitti/baseline_pp_pose/' + str(epoch) + ".pt")
 
 
 

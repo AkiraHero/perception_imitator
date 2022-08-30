@@ -13,13 +13,16 @@ training:
   epoch: 300
   loss_function:
     num_classes: 1
+    iou: True
+    error: True
     alpha: 2.0
     beta: 0.01
+    gamma: 0.1
   optimizer:
     paras:
       lr: 0.001
     type: Adam
-  trainer_class: BaselineMMDTrainer
+  trainer_class: BaselineIOUTrainer
   actor_feature_size: 256
   tensorboard_out_path: default
   FP_distribution: False

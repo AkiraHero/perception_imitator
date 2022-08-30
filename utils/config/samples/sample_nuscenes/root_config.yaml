@@ -1,0 +1,31 @@
+dataset:
+  config_file: dataset/scene_occ_nuscenes.yaml
+  dataset_class: BaselineNuscenesOnlyDetectDataset
+logging:
+  ckpt_eph_interval: 50
+  path: ./output/log
+  suffix: 'baseline'
+model:
+  config_file: model/multi_scale_cnn_cls.yaml
+  model_class: MultiScaleCNNCls
+training:
+  device: 'cuda:0'
+  epoch: 500
+  loss_function:
+    num_classes: 1
+    iou: False
+    error: False
+    alpha: 2.0
+    beta: 0.01
+    gamma: 0.1
+  optimizer:
+    paras:
+      lr: 0.001
+    type: Adam
+  trainer_class: BaselineTrainer
+  actor_feature_size: 256
+  tensorboard_out_path: default
+  FP_distribution: False
+testing:
+  cls_threshold: 0.5
+  nms_iou_threshold: 0.2

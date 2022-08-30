@@ -1,12 +1,12 @@
 dataset_class: BaselineCarlaDataset
 paras:
-  batch_size: 16
-  data_root: E:/PJLAB_Experiment/Data/carla
+  batch_size: 32
+  data_root: /mnt/cache/sunyiyang/Datasets/carla
   for_train: True
-  num_workers: 0
+  num_workers: 8
   shuffle: True
   Town: All
-  target_model: pp
+  target_model: cp
   sweeps_len: 1
   interface: False
   FP_distribution: False

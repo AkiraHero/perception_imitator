@@ -2,6 +2,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from IoU_calculate import *
 
 
 class CustomLoss(nn.Module):
@@ -10,6 +11,11 @@ class CustomLoss(nn.Module):
         self.num_classes = config['num_classes']
         self.alpha = config['alpha']
         self.beta = config['beta']
+        self.use_iou = config['iou']
+        if self.use_iou:
+            self.gamma = config['gamma']
+        self.geometry = [-40, 40 , 0.0, 70.4]
+        self.ratio = 0.2
 
     def focal_loss(self, x, y):
         '''Focal loss.
@@ -36,6 +42,73 @@ class CustomLoss(nn.Module):
     def cross_entropy(self, x, y):
         return F.binary_cross_entropy(input=x, target=y, reduction='mean')
 
+    def smooth_l1_loss(self, x, beta = 1.0):
+        n = torch.abs(x)
+        loss = torch.where(n < beta, 0.5 * n ** 2 / beta, n - 0.5*beta)
+        return loss.mean()
+    
+    def IOU_loss(self, IOU, gamma=1.0):
+        return - torch.log(IOU).sum() * gamma
+    
+    def decode_corner(self,x):
+        device = torch.device('cpu')
+        if x.is_cuda:
+            device = x.get_device()
+        cos_t, sin_t, dx, dy, log_w, log_l = torch.chunk(x, 6, dim=1)
+        # theta = torch.atan2(sin_t, cos_t)
+        # cos_t = torch.cos(theta)
+        # sin_t = torch.sin(theta)
+
+        x = torch.arange(self.geometry[3], self.geometry[2], -self.ratio, dtype=torch.float32, device=device)
+        y = torch.arange(self.geometry[1], self.geometry[0], -self.ratio, dtype=torch.float32, device=device)
+        xx, yy = torch.meshgrid([x, y])
+        centre_y = yy + dy
+        centre_x = xx + dx
+        l = log_l.exp()
+        w = log_w.exp()
+        rear_left_x = centre_x - l/2 * cos_t - w/2 * sin_t
+        rear_left_y = centre_y - l/2 * sin_t + w/2 * cos_t
+        rear_right_x = centre_x - l/2 * cos_t + w/2 * sin_t
+        rear_right_y = centre_y - l/2 * sin_t - w/2 * cos_t
+        front_right_x = centre_x + l/2 * cos_t + w/2 * sin_t
+        front_right_y = centre_y + l/2 * sin_t - w/2 * cos_t
+        front_left_x = centre_x + l/2 * cos_t - w/2 * sin_t
+        front_left_y = centre_y + l/2 * sin_t + w/2 * cos_t
+
+        corners = torch.cat([rear_left_x, rear_left_y, rear_right_x, rear_right_y,
+                                front_right_x, front_right_y, front_left_x, front_left_y], dim=1)
+
+        return corners
+    
+    def decode_reg(self,x):
+        device = torch.device('cpu')
+        if x.is_cuda:
+            device = x.get_device()
+        cos_t, sin_t, dx, dy, log_w, log_l = torch.chunk(x, 6, dim=1)
+        # theta = torch.atan2(sin_t, cos_t)
+        # cos_t = torch.cos(theta)
+        # sin_t = torch.sin(theta)
+
+        x = torch.arange(self.geometry[3], self.geometry[2], -self.ratio, dtype=torch.float32, device=device)
+        y = torch.arange(self.geometry[1], self.geometry[0], -self.ratio, dtype=torch.float32, device=device)
+        xx, yy = torch.meshgrid([x, y])
+        centre_y = yy + dy
+        centre_x = xx + dx
+        l = log_l.exp()
+        w = log_w.exp()
+        
+
+        reg = torch.cat([centre_x, centre_y, l, w, cos_t, sin_t], dim=1)
+
+        tensor_list = torch.split(reg, 1, dim=3)
+        reg = torch.cat([t for t in tensor_list],dim = 0)
+        tensor_list = torch.split(reg, 1, dim=2)
+        reg = torch.cat([t for t in tensor_list],dim = 0)
+        
+        
+        print(reg.size())
+        return reg
+            
 
     def forward(self, preds, targets, attention_mask=None):
         '''Compute loss between (loc_preds, loc_targets) and (cls_preds, cls_targets).
@@ -59,14 +132,13 @@ class CustomLoss(nn.Module):
             cls_targets, loc_targets = targets.split([1, 11], dim=1)
         elif targets.size(1) == 13:
             cls_targets, loc_targets = targets.split([2, 11], dim=1)
-
         # no_distribution
         if preds.size(1) == 7:
             cls_preds, loc_preds = preds.split([1, 6], dim=1)
         if preds.size(1) == 8:
             cls_preds, loc_preds = preds.split([2, 6], dim=1)
         elif preds.size(1) == 15:   # no_distribution下经过Decoder（7+8）
-            cls_preds, loc_preds, _ = preds.split([1, 6, 8], dim=1)
+            cls_preds, loc_preds, corner_preds = preds.split([1, 6, 8], dim=1)
         elif preds.size(1) == 16:
             cls_preds, loc_preds, _ = preds.split([2, 6, 8], dim=1)
 
@@ -79,7 +151,7 @@ class CustomLoss(nn.Module):
             cls_preds, loc_preds, _ = preds.split([1, 11, 8], dim=1)
         elif preds.size(1) == 21:
             cls_preds, loc_preds, _ = preds.split([2, 11, 8], dim=1)
-
+        
         if cls_targets.size(1) == 1:
         ################################################################
         # cls_preds = torch.clamp(cls_preds, min=1e-5, max=1-1e-5)
@@ -98,9 +170,30 @@ class CustomLoss(nn.Module):
             if pos_pixels > 0:
                 loc_loss = F.smooth_l1_loss(cls_targets * loc_preds, loc_targets, reduction='sum') / pos_pixels * self.beta
                 loc = loc_loss.item()
-                loss = loc_loss + cls_loss
+                
+                #################IoU loss####################
+                if self.use_iou:
+                    # mask = cls_targets > 0
+                    # masked_loc_targets = torch.masked_select(loc_targets, mask)
+                    # masked_loc_preds = torch.masked_select(loc_preds, mask)
+                    # reg_targets = self.decode_reg(masked_loc_targets)
+                    # reg_preds = self.decode_reg(masked_loc_preds)
+                    # IOU = boxes_iou_cpu(reg_preds,reg_targets)
+                    # corner_loss = self.IOU_loss(IOU)
+                    corner_preds = self.decode_corner(loc_preds)
+                    corner_targets = self.decode_corner(loc_targets)
+                    
+                    corner_dist = torch.norm(cls_targets *corner_preds - cls_targets*corner_targets, dim=1)
+                    corner_loss = self.smooth_l1_loss(corner_dist) / self.gamma
+
+                    corner = corner_loss.item()
+                    loss = loc_loss + cls_loss + corner_loss
+                else:
+                    corner = 0.0
+                    loss = loc_loss + cls_loss
             else:
                 loc = 0.0
+                corner = 0.0
                 loss = cls_loss
         elif cls_targets.size(1) == 2:
             cls_loss = (self.cross_entropy(cls_preds[:,0,...], cls_targets[:,0,...]) + self.cross_entropy(cls_preds[:,1,...], cls_targets[:,1,...])) * self.alpha
@@ -116,8 +209,7 @@ class CustomLoss(nn.Module):
                 loc = 0.0
                 loss = cls_loss
         
-        #print(cls, loc)
-        return loss, cls, loc, cls_loss
+        return loss, cls, loc, corner, cls_loss
 
 
 class SmoothL1Loss(nn.Module):

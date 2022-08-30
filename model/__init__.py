@@ -12,7 +12,7 @@ for root, dirs, files in os.walk(path, topdown=False):
                 rel_file = name
             py_list.append(rel_file)
 for py in py_list:
-    mod_name = '.'.join([__name__, *(py.split('\\'))]) # windows系统下使用'\\'进行分离，linux下使用'/'
+    mod_name = '.'.join([__name__, *(py.split('/'))]) # windows系统下使用'\\'进行分离，linux下使用'/'
     mod_name = mod_name[:-3]
     try:
         mod = __import__(mod_name, fromlist=[mod_name])

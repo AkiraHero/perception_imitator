@@ -3,7 +3,6 @@ import sys
 sys.path.append(os.getcwd())
 import torch
 from torch.multiprocessing import Pool
-import pandas as pd
 import numpy as np
 from tqdm import tqdm
 import time
@@ -26,10 +25,11 @@ def eval_one(model, loss_func, config, loader, image_id, device, plot=False, ver
     
     occupancy = torch.from_numpy(data['occupancy']).permute(2, 0, 1)
     occlusion = torch.from_numpy(data['occlusion']).permute(2, 0, 1)
-    HDmap = torch.from_numpy(data['HDmap']).permute(2, 0, 1)
+    # HDmap = torch.from_numpy(data['HDmap']).permute(2, 0, 1)
 
     # get input
-    input = torch.cat((occupancy, occlusion, HDmap), dim=0).float().to(device)
+    # input = torch.cat((occupancy, occlusion, HDmap), dim=0).float().to(device)
+    input = torch.cat((occupancy, occlusion), dim=0).float().to(device)
 
     # get label
     label_map, label_list = loader.dataset.get_only_detection_label(image_id)
@@ -37,7 +37,7 @@ def eval_one(model, loss_func, config, loader, image_id, device, plot=False, ver
 
     # Forward Detection
     pred, features = model(input.unsqueeze(0))
-    loss, _, _, _ = loss_func(pred, label_map)
+    loss, _, _, _, _ = loss_func(pred, label_map)
     pred.squeeze_(0)
     features.squeeze_(0)
     cls_pred = pred[0, ...]
@@ -73,6 +73,7 @@ def eval_dataset(config, model, loss_func, loader, device, e_range='all'):
     if e_range != 'all':
         e_range = min(e_range, len(loader.dataset))
         img_list = random.sample(img_list, e_range)
+        total_num = len(img_list)
 
     log_img_list = random.sample(img_list, 5)
 
@@ -125,26 +126,31 @@ if __name__ == '__main__':
     perception_loss_func = CustomLoss(config.training_config['loss_function'])
     prediction_loss_func = SmoothL1Loss()
 
-    paras = torch.load("./output/carla_pp_MMD/v2/MMD_pp_best.pt")
-    model.load_model_paras(paras)
-    model.set_decode(True)
-    model.set_eval()
-    model.set_device("cuda:0")
-
     dataset = DatasetFactory.get_dataset(config.dataset_config)
-    data_loader = dataset.get_data_loader()
 
-    with torch.no_grad():
-        # # Eval one pic
-        # for id in range(0, 100):
-        #     num_gt, num_pred, scores, pred_image, pred_match, loss= \
-        #     eval_one(model, perception_loss_func, config, data_loader, image_id=id, device="cuda", plot=True)
+    for epoch in range(4,30):
+        print('-'*10)
+        print(epoch*10)
 
-        #     TP = (pred_match != -1).sum()
-        #     print("Loss: {:.4f}".format(loss))
-        #     print("Precision: {:.2f}".format(TP/num_pred))
-        #     print("Recall: {:.2f}".format(TP/num_gt))
-            
-        # Eval all
-        metrics, precisions, recalls, log_images = eval_dataset(config, model, perception_loss_func, data_loader, device="cuda", e_range='all')
-        print(metrics)
+        paras = torch.load("./output/kitti/baseline_pvrcnn_final/%s.pt"%(epoch*10))
+        # paras = torch.load("./output/nuscenes/baseline_pp/best.pt")
+        model.load_model_paras(paras)
+        model.set_decode(True)
+        model.set_eval()
+        model.set_device("cuda:0")
+
+        data_loader = dataset.get_data_loader()
+        with torch.no_grad():
+            # # Eval one pic
+            # for id in range(0, 100):
+            #     num_gt, num_pred, scores, pred_image, pred_match, loss= \
+            #     eval_one(model, perception_loss_func, config, data_loader, image_id=id, device="cuda", plot=True)
+
+            #     TP = (pred_match != -1).sum()
+            #     print("Loss: {:.4f}".format(loss))
+            #     print("Precision: {:.2f}".format(TP/num_pred))
+            #     print("Recall: {:.2f}".format(TP/num_gt))
+                
+            # Eval all
+            metrics, precisions, recalls, log_images = eval_dataset(config, model, perception_loss_func, data_loader, device="cuda", e_range='all')
+            print(metrics)

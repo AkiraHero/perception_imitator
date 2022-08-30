@@ -5,7 +5,8 @@ import random
 from cProfile import label
 from cmath import pi
 from optparse import Values
-import pickle
+import json
+from cv2 import DCT_ROWS
 from matplotlib.style import use
 from sklearn.mixture import GaussianMixture
 import matplotlib.pyplot as plt
@@ -14,6 +15,13 @@ import torch
 from torch.utils.data import DataLoader
 
 from dataset.dataset_base import DatasetBase
+from utils.nuscenes.nuscenes import NuScenes
+from utils.nuscenes.eval.prediction.splits import get_prediction_challenge_split
+from utils.nuscenes.prediction import PredictHelper
+from utils.nuscenes.prediction.input_representation.static_layers import StaticLayerRasterizer
+from utils.nuscenes.prediction.input_representation.agents import AgentBoxesWithFadedHistory
+from utils.nuscenes.prediction.input_representation.interface import InputRepresentation
+from utils.nuscenes.prediction.input_representation.combinators import Rasterizer
 from collections import defaultdict
 from pyquaternion import Quaternion
 from utils.preprocess import two_points_2_line, two_points_distance, euclidean_distance
@@ -28,7 +36,7 @@ Dataset for nuScenes easy scene expression loading
     
 '''
 
-class BaselineCarlaDataset(DatasetBase):
+class BaselineNuscenesOnlyDetectDataset(DatasetBase):
     
     def __init__(self, config):
         super(DatasetBase, self).__init__()
@@ -37,89 +45,91 @@ class BaselineCarlaDataset(DatasetBase):
         self._data_root = config['paras']['data_root']
         self._num_workers = config['paras']['num_workers']
         self._shuffle = config['paras']['shuffle']
-        self._town = config['paras']['Town']
+        self._target_model = config['paras']['target_model']
+        self._nuscenes_type = config['paras']['nuscenes_type']
         self._geometry = config['paras']['geometry']
         self._sweeps_len = config['paras']['sweeps_len']
         assert self._sweeps_len > 0 and isinstance(self._sweeps_len, int)
-        self._target_model = config['paras']['target_model']
         self._is_interface = config['paras']['interface']
         self._distribution_setting = config['paras']['FP_distribution']
         self._car_std = config['paras']['waypoints_std']['car']
         self._pedestrian_std = config['paras']['waypoints_std']['pedestrian']
-        
-        self.label_path = os.path.join(self._data_root, "carla_new/label_2/")
-        self.pose_path = os.path.join(self._data_root, "carla_new/pose/")
 
-        self.dbinfos = None
-
-        # gt_file = os.path.join("./data", "carla_%s_sim_model_gt.pkl" %self._target_model)
-        # with open(gt_file, 'rb') as f:
-        #     self.dt_results_all = pickle.load(f)   # 加载target detection model和target prediction model下的真值
-        # random.seed(2022)
-        # random.shuffle(self.dt_results_all)
-        # offset = int(len(self.dt_results_all) * 0.8)
-        # if self._is_train == True:
-        #     self.dt_results = self.dt_results_all[:offset]
-        # else:
-        #     self.dt_results = self.dt_results_all[offset:]
-
-        self.world_offset, self.world_scale = None, None
-        self.global_map, self.global_waypoint_map = self.get_global_map(self._town)                    # 获取世界地图
-
-        # 获取检测结果
-        detect_result_file = os.path.join("./data", "carla_%s_match_gt.pkl" %self._target_model)
-        with open(detect_result_file, 'rb') as f:     # 加载检测结果
-            self.all_dt_results = pickle.load(f)
-        random.seed(2022)
-        random.shuffle(self.all_dt_results)
-        offset = int(len(self.all_dt_results) * 0.8)
-        if self._is_train == True:
-            self.dt_results = self.all_dt_results[:offset]
+        if self._is_interface:
+            self.dt_results = []
         else:
-            self.dt_results = self.all_dt_results[offset:]
-        self.test_frame = []
-        for i in range(len(self.dt_results)):
-            self.test_frame.append(self.dt_results[i]['frame_id'])
+            self._nuscenes = NuScenes(self._nuscenes_type, dataroot=self._data_root, verbose=True)
+            self._helper = PredictHelper(self._nuscenes)
 
-        # 获取所有DT和GT x, y, logl, logw, cost, sint的误差数组，用于后续使用高斯混合分布进行逼近
-        self.GMM = self.get_box_error_GMM(8)
+            dt_file_name = "nuscenes_%s_mini_match_gt.json"%self._target_model if self._nuscenes_type == "v1.0-mini" \
+                           else "nuscenes_%s_match_gt.json"%self._target_model
+            dt_file = os.path.join("./data", dt_file_name)
+            with open(dt_file, 'rb') as f:
+                self.all_dt_results = json.load(f)   # 加载target detection model下的真值
 
+            random.seed(2022)
+            train_list = random.sample(self.all_dt_results.keys(), int(len(self.all_dt_results)*0.8))
+            if self._is_train == True:
+                self.dt_results = dict([(key, self.all_dt_results[key]) for key in train_list])
+            else:
+                self.dt_results = dict([(key, self.all_dt_results[key]) for key in self.all_dt_results.keys() if key not in train_list])
+
+            # 获取所有DT和GT x, y, logl, logw, cost, sint的误差数组，用于后续使用高斯混合分布进行逼近
+            self.GMM = self.get_box_error_GMM(8)
+            
+    def get_data_loader(self, distributed=False):
+        return DataLoader(
+            dataset=self,
+            batch_size=self._batch_size,
+            shuffle=self._shuffle,
+            num_workers=self._num_workers,
+            collate_fn=BaselineNuscenesOnlyDetectDataset.collate_batch
+        )
+    
+    '''代适配新的self.dt_results'''
     def get_box_error_GMM(self, components=8):
         err_x, err_y, err_log_l, err_log_w, err_cost, err_sint = [], [], [], [], [], []
+        for sample_token in list(self.dt_results.keys()):
+            ego_pose_token, calib_token= self.get_egopose_calib_token(sample_token)
 
-        for frame in self.all_dt_results:
-            frame_id = frame['frame_id']
-            all_dt_data = frame['dt']
-            label = frame['gt']
+            all_dt_data = self.dt_results[sample_token]
+            calib_data = self._nuscenes.get('calibrated_sensor', calib_token)        
+            ego_data = self._nuscenes.get('ego_pose', ego_pose_token)
+            
+            sample = self._nuscenes.get('sample', sample_token)
+            annotation_tokens = sample['anns']  # 获取sample场景下所有物体标注的tokens
 
             for det_data in all_dt_data:
-                if det_data['name'] != 'Car': 
+                if det_data['detection_name'] != 'car': 
                     continue
-                if det_data['match_gt'] < 0 or det_data['match_gt'] >= len(label):
+                if det_data['match_gt'] < 0: 
                     continue
+                if det_data['detection_score'] >= 0.05:
+                    # DT
+                    center, yaw = self.transform_gobal2metric(det_data['translation'], det_data['rotation'], calib_data, ego_data)
+                    x = center[1]
+                    y = - center[0]
+                    log_l = np.log(np.array(det_data['size'])[1])
+                    log_w = np.log(np.array(det_data['size'])[0])
+                    cost = np.cos(yaw)
+                    sint = np.sin(yaw)
 
-                x = det_data['location'][2]
-                y = - det_data['location'][0]
-                log_l = np.log(det_data['dimensions'][2])
-                log_w = np.log(det_data['dimensions'][1])
-                cost = np.cos(det_data['rotation_y'])
-                sint = np.sin(det_data['rotation_y'])
-            
-                # DT对应的GT
-                GT = label[det_data['match_gt']]
-                gt_x = GT['location'][2]
-                gt_y = - GT['location'][0]
-                gt_log_l = np.log(GT['dimensions'][2])
-                gt_log_w = np.log(GT['dimensions'][1])
-                gt_cost = np.cos(GT['rotation_y'])
-                gt_sint = np.sin(GT['rotation_y'])
+                    # DT对应的GT
+                    ann = self._nuscenes.get('sample_annotation', annotation_tokens[det_data['match_gt']])
+                    center, yaw = self.transform_gobal2metric(ann['translation'], ann['rotation'], calib_data, ego_data)
+                    gt_x = center[1]
+                    gt_y = - center[0]
+                    gt_log_l = np.log(np.array(ann['size'])[1])
+                    gt_log_w = np.log(np.array(ann['size'])[0])
+                    gt_cost = np.cos(yaw)
+                    gt_sint = np.sin(yaw)
 
-                err_x.extend([x - gt_x])
-                err_y.extend([y - gt_y])
-                err_log_l.extend([log_l - gt_log_l])
-                err_log_w.extend([log_w - gt_log_w])
-                err_cost.extend([cost - gt_cost])
-                err_sint.extend([sint - gt_sint])
+                    err_x.extend([x - gt_x])
+                    err_y.extend([y - gt_y])
+                    err_log_l.extend([log_l - gt_log_l])
+                    err_log_w.extend([log_w - gt_log_w])
+                    err_cost.extend([cost - gt_cost])
+                    err_sint.extend([sint - gt_sint])
 
         GMM_x = GaussianMixture(n_components=components, covariance_type='full', random_state=np.random).fit(np.array(err_x).reshape(-1, 1))
         GMM_y = GaussianMixture(n_components=components, covariance_type='full', random_state=np.random).fit(np.array(err_y).reshape(-1, 1))
@@ -127,128 +137,21 @@ class BaselineCarlaDataset(DatasetBase):
         GMM_log_w = GaussianMixture(n_components=components, covariance_type='full', random_state=np.random).fit(np.array(err_log_w).reshape(-1, 1))
         GMM_cost = GaussianMixture(n_components=components, covariance_type='full', random_state=np.random).fit(np.array(err_cost).reshape(-1, 1))
         GMM_sint = GaussianMixture(n_components=components, covariance_type='full', random_state=np.random).fit(np.array(err_sint).reshape(-1, 1))
- 
+
         return [GMM_x, GMM_y, GMM_log_l, GMM_log_w, GMM_cost, GMM_sint]
 
-    def get_data_loader(self, distributed=False):
-        return DataLoader(
-            dataset=self,
-            batch_size=self._batch_size,
-            shuffle=self._shuffle,
-            num_workers=self._num_workers,
-            collate_fn=BaselineCarlaDataset.collate_batch
-        )
-
-    def get_dbinfos(self):
-        with open('./data/kitti_infos_val.pkl','rb') as f:
-            infos = pickle.load(f)
-
-        dbinfos = {}
-        for info in infos:
-            frame_id = info['point_cloud']['lidar_idx']
-            annos = info['annos']
-            gt = []
-            for i in range(len(annos['name'])):
-                gt_info = {
-                    'dimensions':annos['dimensions'][i],
-                    'location':annos['location'][i],
-                    'rotation_y':annos['rotation_y'][i],
-                    'name':annos['name'][i]
-                }
-                gt.append(gt_info)
-            dbinfos[frame_id] = gt
-
-        self.dbinfos = dbinfos
-
-    def get_world_offset_and_scale(self, Town):
-        offset = {'Town01': [-52.059906005859375, -52.04996085166931],
-                'Town02': [-57.45972919464111, 55.3907470703125],
-                'Town03': [-199.0638427734375, -259.27125549316406],
-                'Town04': [-565.26904296875, -446.1461181640625], 
-                'Town05': [-326.0445251464844, -257.8750915527344]
+    def label_str2num(self, clss):
+        d = {
+            'Car': 1,
+            'Van': 1,
+            'Truck': 1,
+            'Tram': 1,
+            'Misc': 1,
+            'Pedestrian': 2,
+            'Person_sitting':2,
+            'Cyclist': 3
         }
-        scale = {'Town01': 5,
-                'Town02': 5,
-                'Town03': 5,
-                'Town04': 5,
-                'Town05': 5,
-        }
-        return offset[Town], scale[Town]
-
-    def get_global_map(self, Town):
-        if Town == "All":
-            all_map = []
-            all_waypoint = []
-            for town in ["Town01", "Town02", "Town03", "Town04", "Town05"]:
-                map_path = os.path.join(self._data_root, "Maps/%s" %town)
-                map = cv2.imread(os.path.join(map_path, "map.png"))
-                # 二值化
-                map = cv2.cvtColor(map, cv2.COLOR_BGR2GRAY)
-                ret, map = cv2.threshold(map, 0, 1, cv2.THRESH_BINARY)
-                all_map.append(map)
-
-                for i in range(4):
-                    if i == 0 :
-                        waypoint = cv2.imread(os.path.join(map_path, "waypoint%d.png" %i))
-                        # 二值化
-                        waypoint = cv2.cvtColor(waypoint, cv2.COLOR_BGR2GRAY)
-                        ret, waypoint = cv2.threshold(waypoint, 0, 1, cv2.THRESH_BINARY)
-                    else:
-                        temp = cv2.imread(os.path.join(map_path, "waypoint%d.png" %i))
-                        temp = cv2.cvtColor(temp, cv2.COLOR_BGR2GRAY)
-                        ret, temp = cv2.threshold(temp, 0, 1, cv2.THRESH_BINARY)
-                        waypoint = np.clip(waypoint + temp, 0, 1)
-                all_waypoint.append(waypoint)
-
-            return all_map, all_waypoint
-        else:
-            map_path = os.path.join(self._data_root, "Maps/%s" %Town)
-            map = cv2.imread(os.path.join(map_path, "map.png"))
-            # 二值化
-            map = cv2.cvtColor(map, cv2.COLOR_BGR2GRAY)
-            ret, map = cv2.threshold(map, 0, 1, cv2.THRESH_BINARY)
-
-            for i in range(4):
-                if i == 0 :
-                    waypoint = cv2.imread(os.path.join(map_path, "waypoint%d.png" %i))
-                    # 二值化
-                    waypoint = cv2.cvtColor(waypoint, cv2.COLOR_BGR2GRAY)
-                    ret, waypoint = cv2.threshold(waypoint, 0, 1, cv2.THRESH_BINARY)
-                else:
-                    temp = cv2.imread(os.path.join(map_path, "waypoint%d.png" %i))
-                    temp = cv2.cvtColor(temp, cv2.COLOR_BGR2GRAY)
-                    ret, temp = cv2.threshold(temp, 0, 1, cv2.THRESH_BINARY)
-                    waypoint = np.clip(waypoint + temp, 0, 1)
-            return np.array(map), np.array(waypoint)
-
-    def frame2town(self, frame):
-        freme_id = int(frame)
-        if freme_id >= 7854 and freme_id <= 8740:
-            Town_name = 'Town01'
-        elif freme_id >= 6264 and freme_id <= 7852:
-            Town_name = 'Town02'
-        elif (freme_id >= 4386 and freme_id <= 6263) or (freme_id >= 13837 and freme_id <= 16418):
-            Town_name = 'Town03'
-        elif (freme_id >= 1861 and freme_id <= 4385) or (freme_id >= 12312 and freme_id <= 13836):
-            Town_name = 'Town04'
-        elif (freme_id >= 0 and freme_id <= 1852) or (freme_id >= 8741 and freme_id <= 12311):
-            Town_name = 'Town05'
-
-
-        return Town_name
-
-    def world_to_pixel(self, location, scale, world_offset, offset=(0,0)):
-        x = scale * (location[0] - world_offset[0])
-        y = scale * (location[1] - world_offset[1])
-        return [int(x - offset[0]), int(y - offset[1])]
-
-    def get_crop(self, img, ego_pix, meters_behind, meters_ahead, meters_left, meters_right, resolution):
-        pix_ahead = meters_ahead * resolution
-        pix_behind = meters_behind * resolution
-        pix_left = meters_left * resolution
-        pix_right = meters_right * resolution
-
-        return img[slice(int(ego_pix[1]-pix_ahead), int(ego_pix[1]-pix_behind)), slice(int(ego_pix[0]+pix_left), int(ego_pix[0]+pix_right)), ...]
+        return d[clss]
 
     def standardize(self, arr, mean, std):
         return (np.array(arr) - mean) / std
@@ -283,6 +186,25 @@ class BaselineCarlaDataset(DatasetBase):
 
         return bev_corners, reg_target
 
+    def transform_gobal2metric(self, ann_translation, ann_rotation, calib_data, ego_data):
+        # global frame
+        center = np.array(ann_translation)
+        orientation = np.array(ann_rotation)
+        # 从global frame转换到ego vehicle frame
+        quaternion = Quaternion(ego_data['rotation']).inverse
+        center -= np.array(ego_data['translation'])
+        center = np.dot(quaternion.rotation_matrix, center)
+        orientation = quaternion * orientation
+        # 从ego vehicle frame转换到sensor frame
+        quaternion = Quaternion(calib_data['rotation']).inverse
+        center -= np.array(calib_data['translation'])
+        center = np.dot(quaternion.rotation_matrix, center)
+        orientation = quaternion * orientation
+        v = np.dot(orientation.rotation_matrix, np.array([1, 0, 0]))
+        yaw = np.arctan2(v[1], v[0]) - math.pi / 2
+
+        return center, yaw
+
     def transform_metric2label(self, metric, ratio=0.2, base_height=352, base_width=200):
         '''
         :param label: numpy array of shape [..., 2] of coordinates in metric space
@@ -305,13 +227,6 @@ class BaselineCarlaDataset(DatasetBase):
         metric = - metric * ratio
 
         return metric
-
-    def transform_gobal2metric(self, global_points, ego_pos, ego_yaw):
-        trans_points = global_points - ego_pos
-        label_x = trans_points[0] * np.cos(ego_yaw) + trans_points[1] * np.sin(ego_yaw)
-        label_y = - trans_points[0] * np.sin(ego_yaw) + trans_points[1] * np.cos(ego_yaw)
-
-        return [label_x, label_y]
 
     def get_points_in_a_rotated_box(self, corners, label_shape=[352, 400]):
         def minY(x0, y0, x1, y1, x):
@@ -431,32 +346,42 @@ class BaselineCarlaDataset(DatasetBase):
                 map[label_x, label_y, 1:12] = actual_reg_target
             else:
                 map[label_x, label_y, 1:7] = actual_reg_target
+    
+    def get_egopose_calib_token(self, sample_token):
+        sample = self._nuscenes.get('sample', sample_token)
+        lidar_top_data = self._nuscenes.get('sample_data', sample['data']['LIDAR_TOP']) 
+        calib_token = lidar_top_data['calibrated_sensor_token']
+        ego_pose_token = lidar_top_data['ego_pose_token']
 
-    def sample_occupancy_and_occlusion(self, idx):
+        return ego_pose_token, calib_token
+
+    def sample_occupancy_and_occlusion(self, sample_token):
+        ego_pose_token, calib_token  = self.get_egopose_calib_token(sample_token)
+
         pic_height, pic_width = self._geometry['label_shape'][:2]
         ratio = self._geometry['ratio']
         img_cam_pos = [pic_height, pic_width/2]
         sample_occupancy = np.zeros([pic_height, pic_width]).astype('int32')
         sample_occlusion = np.ones([pic_height, pic_width]).astype('int32')
 
-        # frame_id = self.dt_results[idx]['frame_id']
-        frame_id = self.test_frame[idx]
-        label_file = open(os.path.join(self.label_path, "%s.txt" %frame_id)) 
+        sample_annotation = self._helper.get_annotations_for_sample(sample_token)
+        calib_data = self._nuscenes.get('calibrated_sensor', calib_token)
+        ego_data = self._nuscenes.get('ego_pose', ego_pose_token)
 
-        for line in label_file.readlines():  
-            attributes = line.split(" ")   
-            if attributes[0] not in ['Car', 'Pedestrian', 'Cyclist', 'TrafficLight', 'TrafficSigns']:
-                continue
+        # 对sample中的每个annotation进行坐标变换(global -> lidar)
+        for annotation in sample_annotation:
+            anno_token = annotation['token']
+            ann = self._nuscenes.get('sample_annotation', anno_token)
+            center, yaw = self.transform_gobal2metric(ann['translation'], ann['rotation'], calib_data, ego_data)
     
             ############################
             # First stage: get occupancy
             ############################
-            cam_x, cam_y, cam_z = attributes[11:14]
-            lidar_x = float(cam_z)
-            lidar_y = - float(cam_x)
-            lidar_l = float(attributes[9])
-            lidar_w = float(attributes[10])
-            theta = float(attributes[14])
+            lidar_x = center[1]
+            lidar_y = - center[0]
+            lidar_l = np.array(ann['size'])[1]
+            lidar_w = np.array(ann['size'])[0]
+            theta = yaw
 
             # 调整坐标到图片坐标系
             img_x, img_y = self.transform_metric2label(np.array([[lidar_x, lidar_y]]))[0].astype('int32')
@@ -496,9 +421,9 @@ class BaselineCarlaDataset(DatasetBase):
             
             for i in range(label_corners.shape[0]):
                 # 需要截断超出bev视图的部分
-                label_corners[i][0] = max(0, label_corners[i][0])
+                label_corners[i][0] = max(0, label_corners[i][0])  
                 label_corners[i][0] = min(352, label_corners[i][0])
-                label_corners[i][1] = max(0, label_corners[i][1])
+                label_corners[i][1] = max(0, label_corners[i][1])  
                 label_corners[i][1] = min(400, label_corners[i][1])
 
                 k, b = two_points_2_line(label_corners[i], img_cam_pos)
@@ -562,7 +487,7 @@ class BaselineCarlaDataset(DatasetBase):
                 cv2.drawContours(matrix, [points], -1, (1), thickness=-1)
                 list_of_points_indices = np.nonzero(np.swapaxes(matrix, 1, 0))
                 sample_occlusion[list_of_points_indices] = 0
-                
+
         return sample_occupancy, sample_occlusion
 
     def get_occupancy(self, idx):
@@ -575,14 +500,17 @@ class BaselineCarlaDataset(DatasetBase):
         occupancy = []
         occlusion = []
 
-        for i in range(self._sweeps_len):   # 多帧代码无法适配carla数据集，因为是间隔着进行的val的
-            sample_occupancy, sample_occlusion = self.sample_occupancy_and_occlusion(idx)
+        sample_token = list(self.dt_results.keys())[idx]
+        sample = self._nuscenes.get('sample', sample_token)
+        for i in range(self._sweeps_len):   
+            sample_occupancy, sample_occlusion = self.sample_occupancy_and_occlusion(sample_token)
             occupancy.append(sample_occupancy)
             occlusion.append(sample_occlusion)
 
-            if idx > 0:
-                idx -= 1
-            else:   # 为第一帧时，重复第一帧的数据
+            if sample['prev'] != '':
+                sample_token = sample['prev']
+                sample = self._nuscenes.get('sample', sample_token)
+            else:   # 当真值中没有prev_sample时，则重复当前帧结果
                 pass
         
         # 将当前帧元素放在最顶层
@@ -595,155 +523,118 @@ class BaselineCarlaDataset(DatasetBase):
         return occupancy, occlusion
 
     def get_HDmap(self, idx):
-        HD_map = []
-
         ratio = self._geometry['ratio']
-        resolution = 1 / ratio
-        meters_left = self._geometry['L1']
-        meters_right = self._geometry['L2']
-        meters_behind = self._geometry['W1']
-        meters_ahead = self._geometry['W2']
+        meters_left = abs(self._geometry['L1'])
+        meters_right = abs(self._geometry['L2'])
+        meters_behind = abs(self._geometry['W1'])
+        meters_ahead = abs(self._geometry['W2'])
+        static_layer_rasterizer = StaticLayerRasterizer(self._helper, resolution=ratio, meters_ahead=meters_ahead, \
+                                                        meters_behind=meters_behind, meters_left=meters_left, meters_right=meters_right)
 
-        # frame_id = self.dt_results[idx]['frame_id']
-        frame_id = self.test_frame[idx]
-        Town_id = int(self.frame2town(self.test_frame[idx]).replace('Town', ''))
-        ego_pose = np.load(self.pose_path + '%s.npy' %frame_id)
-        position = ego_pose[0:2]
-        yaw = ego_pose[4] + 90
-        pixel = self.world_to_pixel(position, self.world_scale, self.world_offset)
+        sample_token_img = list(self.dt_results.keys())[idx]
+        ego_pose_token_img, _ = self.get_egopose_calib_token(sample_token_img)
 
-        for layer in [self.global_map[Town_id - 1], self.global_waypoint_map[Town_id - 1]]:
-            height, width = layer.shape[:2]
-            # 根据egopose计算旋转平移矩阵
-            matRotation = cv2.getRotationMatrix2D((pixel), yaw, 1)
-            matRotation[0, 2] += width//2 - pixel[0]
-            matRotation[1, 2] += height//2 - pixel[1]
-            layerRotation = cv2.warpAffine(layer, matRotation,(width,height), borderValue=(0,0,0))
-            layerReshape = cv2.resize(layerRotation, (int(width / self.world_scale * resolution), int(height / self.world_scale * resolution)))         # carla map的分辨率不统一，因此需要调整
-            layerCrop = self.get_crop(layerReshape, [width / self.world_scale * resolution // 2, height / self.world_scale * resolution // 2], meters_behind, meters_ahead, meters_left, meters_right, resolution)
-            HD_map.append(layerCrop)
-
-        HD_map = np.stack(HD_map, axis=2)
+        HD_map = static_layer_rasterizer.make_representation(ego_pose_token_img, sample_token_img)
 
         return HD_map
 
-    def get_label(self, idx):
-        label_map = np.zeros((self._geometry['label_shape'][0], self._geometry['label_shape'][1], 7), dtype=np.float32)
-        label_list = []
-        bev_bbox = []
-        all_future_waypoints = []
-        all_future_waypoints_st = []
-
-        # 自车位姿，用于将gobal waypoint转到雷达坐标系
-        frame_id = self.dt_results[idx]['frame_id']
-        ego_pose = np.load(self.pose_path + '%s.npy' %frame_id)
-        position = ego_pose[0:2]
-        yaw = math.radians(ego_pose[4])
-
-        all_gt_data = self.dt_results[idx]['results']
-        for gt_data in all_gt_data:
-            det_data = gt_data["detection"]
-            pred_data = gt_data["prediction"]
-            if det_data['name'] != 'Car': 
-                continue
-
-            # Step 1: 获取lidar坐标系下的检测结果，分为训练所用的label_map和测试所用label_list
-            x = det_data['location'][2]
-            y = - det_data['location'][0]
-            l = det_data['dimensions'][2]
-            w = det_data['dimensions'][1]
-            theta = det_data['rotation_y']
-
-            # Step 2:获取雷达坐标系下的预测结果
-            global_waypoints = pred_data['future_waypoints']
-            lidar_waypoints = []
-            lidar_waypoints_st = [] # 存储标准化结果
-            for i in range(global_waypoints.shape[0]):
-                center = self.transform_gobal2metric(global_waypoints[i], position, yaw)
-                lidar_waypoints.append([center[0], - center[1]])
-                
-                # 在lidar视图上对轨迹点进行标准化，以当前位置为mean
-                if det_data['name'] == 'Car':         # 针对car类别，std选40
-                    lidar_waypoints_st.append([(center[0] - x)/self._car_std, (- center[1] - y)/self._car_std])
-                else:                                           # 针对pedestrian类别，std选1
-                    lidar_waypoints_st.append([(center[0] - x)/self._pedestrian_std, (- center[1] - y)/self._pedestrian_std])
-            lidar_waypoints = np.array(lidar_waypoints)
-            lidar_waypoints_st = np.array(lidar_waypoints_st)
-
-            # 进行筛选
-            if x < self._geometry['W1'] or x > self._geometry['W2'] or y < self._geometry['L1'] or y > self._geometry['L2'] :
-                continue    # 由于在目前检测结果是在范围 [-51.2, -51.2, -5.0, 51.2, 51.2, 3.0]下进行的，因此需要筛选
-            if abs(lidar_waypoints[1][0] - lidar_waypoints[0][0]) > 10 or abs(lidar_waypoints[1][1] - lidar_waypoints[0][1]) > 10:
-                continue    # 速度在x或y分量上超过20m/s(10m/0.5s)则被筛掉
-
-            # 整理获取label
-            corners, reg_target = self.get_corners([x, y, l, w, theta], use_distribution=False)
-            self.update_label_map(label_map, corners, reg_target)
-            label_list.append(corners)
-
-            car_mean = np.array([17.45, -6.92, 4.72, 1.93, -1.11])
-            car_std = np.array([10.43, 8.26, 0.26, 0.077, 1.61])
-            norm_bev_bbox_para = self.standardize([x, y, l, w, theta], car_mean, car_std)
-            bev_bbox.extend(norm_bev_bbox_para)
-
-            all_future_waypoints.append(lidar_waypoints)
-            all_future_waypoints_st.append(lidar_waypoints_st)
-
-        if len(all_future_waypoints) != 0:
-            future_waypoints = np.stack(all_future_waypoints, axis=0)
-            future_waypoints_st = np.stack(all_future_waypoints_st, axis=0)
-        else:
-            future_waypoints = np.array([])
-            future_waypoints_st = np.array([])
-
-        assert len(label_list) == future_waypoints.shape[0]         # label_list应该和future_waypoints一一对应
-
-        return label_map, label_list, bev_bbox, future_waypoints, future_waypoints_st
-    
     def get_only_detection_label(self, idx):
-        label_map = np.zeros((self._geometry['label_shape'][0], self._geometry['label_shape'][1], 7), dtype=np.float32)
+        
+        if self._distribution_setting == True:
+            label_map = np.zeros((self._geometry['label_shape'][0], self._geometry['label_shape'][1], 12), dtype=np.float32)
+        else:
+            label_map = np.zeros((self._geometry['label_shape'][0], self._geometry['label_shape'][1], 7), dtype=np.float32)
         label_list = []
 
-        frame_id = self.test_frame[idx]
-        dt_result_idx = self.test_frame.index(frame_id)
+        ### 此部分暂未适应target_dt & target_pred数据集###
+        if self._distribution_setting == True:  
+            fp_bboxes = self._fp_distribution['fp_mean'][idx]   # 将均值作为期望的被检测框参数
+            fp_var = self._fp_distribution['fp_var'][idx]
+            fp_num = self._fp_distribution['fp_num'][idx]       # 用于筛选，总共392次实验，认为这一组中FP数量少于5的不作为FP
+            scores = self._fp_distribution['fp_score'][idx]
 
-        for det_data in self.dt_results[dt_result_idx]['dt']:
-            if det_data['name'] != 'Car': 
-                continue
+            for i in range(len(fp_bboxes)):     # 处理一个FP框
+                if fp_num[i] >= 50 and scores[i] >= 0.3:
+                    x = fp_bboxes[i][0]
+                    y = fp_bboxes[i][1]
+                    l = fp_bboxes[i][3]
+                    w = fp_bboxes[i][4]
+                    yaw = fp_bboxes[i][6]
 
-            x = det_data['location'][2]
-            y = - det_data['location'][0]
-            l = det_data['dimensions'][2]
-            w = det_data['dimensions'][1]
-            theta = - np.pi - det_data['rotation_y']
+                    x_var = fp_var[i][0]
+                    y_var = fp_var[i][1]
+                    l_var = fp_var[i][3]
+                    w_var = fp_var[i][4]
+                    yaw_var = fp_var[i][6]
 
-            # 进行筛选
-            if x < self._geometry['W1'] or x > self._geometry['W2'] or y < self._geometry['L1'] or y > self._geometry['L2'] :
-                continue    # 由于在目前检测结果是在范围 [-51.2, -51.2, -5.0, 51.2, 51.2, 3.0]下进行的，因此需要筛选
+                    corners, reg_target = self.get_corners([x, y, l, w, yaw, x_var, y_var, l_var, w_var, yaw_var], use_distribution=True)
+                    self.update_label_map(label_map, corners, reg_target)
+                    label_list.append(corners)
+        #####################################################
 
-            # 整理获取label
-            corners, reg_target = self.get_corners([x, y, l, w, theta], use_distribution=False)
-            self.update_label_map(label_map, corners, reg_target)
-            label_list.append(corners)
+        else:
+            sample_token = list(self.dt_results.keys())[idx]
+            ego_pose_token, calib_token= self.get_egopose_calib_token(sample_token)
+
+            all_gt_data = self.dt_results[sample_token]
+            calib_data = self._nuscenes.get('calibrated_sensor', calib_token)        
+            ego_data = self._nuscenes.get('ego_pose', ego_pose_token)
+
+            for det_data in all_gt_data:
+                if det_data['detection_name'] != 'car': 
+                    continue
+                if det_data['detection_score'] >= 0.05:
+                    # Step 1: 获取lidar坐标系下的检测结果，分为训练所用的label_map和测试所用label_list
+                    center, yaw = self.transform_gobal2metric(det_data['translation'], det_data['rotation'], calib_data, ego_data)
+
+                    x = center[1]
+                    y = - center[0]
+                    l = np.array(det_data['size'])[1]
+                    w = np.array(det_data['size'])[0]
+                    theta = yaw
+
+                    # 进行筛选
+                    if x < self._geometry['W1'] or x > self._geometry['W2'] or y < self._geometry['L1'] or y > self._geometry['L2'] :
+                        continue    # 筛选范围外框
+
+                    # 整理获取label
+                    corners, reg_target = self.get_corners([x, y, l, w, theta], use_distribution=False)
+                    self.update_label_map(label_map, corners, reg_target)
+                    label_list.append(corners)
 
         return label_map, label_list
 
-    def get_pass_gt_info(self, idx):
+    def get_gt_info(self, idx):
         gt_map = np.zeros((self._geometry['label_shape'][0], self._geometry['label_shape'][1], 7), dtype=np.float32)
         gt_list = []
 
-        frame_id = self.test_frame[idx]
-        dt_result_idx = self.test_frame.index(frame_id)
+        sample_token = list(self.dt_results.keys())[idx]
+        ego_pose_token, calib_token  = self.get_egopose_calib_token(sample_token)
 
-        for det_data in self.dt_results[dt_result_idx]['gt']:
-            if det_data['name'] != 'Car': 
+        sample_annotation = self._helper.get_annotations_for_sample(sample_token)
+        calib_data = self._nuscenes.get('calibrated_sensor', calib_token)
+        ego_data = self._nuscenes.get('ego_pose', ego_pose_token)
+
+        # 对sample中的每个annotation进行坐标变换(global -> lidar)
+        for annotation in sample_annotation:
+            anno_token = annotation['token']
+            ann = self._nuscenes.get('sample_annotation', anno_token)
+
+            if 'car' not in ann['category_name']:
+                continue
+            if int(ann['visibility_token']) < 2:
                 continue
 
-            x = det_data['location'][2]
-            y = - det_data['location'][0]
-            l = det_data['dimensions'][2]
-            w = det_data['dimensions'][1]
-            theta = - np.pi - det_data['rotation_y']
+            center, yaw = self.transform_gobal2metric(ann['translation'], ann['rotation'], calib_data, ego_data)
+
+            x = center[1]
+            y = - center[0]
+            l = np.array(ann['size'])[1]
+            w = np.array(ann['size'])[0]
+            theta = yaw
+
+            if x < self._geometry['W1'] or x > self._geometry['W2'] or y < self._geometry['L1'] or y > self._geometry['L2'] :
+                continue    # 筛选范围外框
 
             # 整理获取label
             corners, reg_target = self.get_corners([x, y, l, w, theta], use_distribution=False)
@@ -752,52 +643,31 @@ class BaselineCarlaDataset(DatasetBase):
 
         return gt_map, gt_list
 
-    def get_gt_info(self, idx):
-        gt_label_map = np.zeros((self._geometry['label_shape'][0], self._geometry['label_shape'][1], 7), dtype=np.float32)
-        gt_label_list = []
-        frame_id = self.test_frame[idx]
-        if self.dbinfos is None:
-            self.get_dbinfos()
-        gt_data = self.dbinfos[frame_id]
-        
-        for gt_label in gt_data:
-            if gt_label['name'] != 'Car':
-                continue
-            
-            gt_x = gt_label['location'][2]
-            gt_y = - gt_label['location'][0]
-            gt_l = gt_label['dimensions'][2]
-            gt_w = gt_label['dimensions'][1]
-            gt_theta = - gt_label['rotation_y']
-            
-            if gt_x < self._geometry['W1'] or gt_x > self._geometry['W2'] or gt_y < self._geometry['L1'] or gt_y > self._geometry['L2'] :
-                continue 
-            
-            gt_corners,reg_target_gt = self.get_corners([gt_x, gt_y, gt_l, gt_w, gt_theta], use_distribution=False)
-            self.update_label_map(gt_label_map, gt_corners, reg_target_gt)
-            gt_label_list.append(gt_corners)
-        return gt_label_map, gt_label_list
-
-   
     def get_gaussian_noise(self, idx, mu=0, sigma=1 ,drop=0):
         gaussian_noise_list = []
 
-        frame_id = self.dt_results[idx]['frame_id']
-        label_file = open(os.path.join(self.label_path, "%s.txt" %frame_id)) 
+        sample_token = list(self.dt_results.keys())[idx]
+        ego_pose_token, calib_token  = self.get_egopose_calib_token(sample_token)
+        sample_annotation = self._helper.get_annotations_for_sample(sample_token)
+        calib_data = self._nuscenes.get('calibrated_sensor', calib_token)
+        ego_data = self._nuscenes.get('ego_pose', ego_pose_token)
 
-        for line in label_file.readlines():  
-            attributes = line.split(" ")   
-            if attributes[0] != 'Car':    # 只针对Car类型增加噪声
+        # 对sample中的每个annotation进行坐标变换(global -> lidar)
+        for annotation in sample_annotation:
+            if 'vehicle' not in annotation['category_name']:    # 只针对vehicle类型增加噪声
                 continue
             if np.random.choice([0, 1], p=[1 - drop, drop]):    # 按概率进行筛选模拟FN
                 continue
 
-            cam_x, cam_y, cam_z = attributes[11:14]
-            x = float(cam_z)
-            y = - float(cam_x)
-            log_l = np.log(float(attributes[9]))
-            log_w = np.log(float(attributes[10]))
-            cos_t, sin_t = np.cos(float(attributes[14])), np.sin(float(attributes[14]))
+            anno_token = annotation['token']
+            ann = self._nuscenes.get('sample_annotation', anno_token)
+            center, yaw = self.transform_gobal2metric(ann['translation'], ann['rotation'], calib_data, ego_data)
+    
+            x = center[1]
+            y = - center[0]
+            log_l = np.log(np.array(ann['size'])[1])
+            log_w = np.log(np.array(ann['size'])[0])
+            cos_t, sin_t = np.cos(yaw), np.sin(yaw)
 
             # Add Gaussian Noise
             x += random.gauss(mu, sigma)
@@ -828,22 +698,28 @@ class BaselineCarlaDataset(DatasetBase):
 
         multimodal_noise_list = []
 
-        frame_id = self.dt_results[idx]['frame_id']
-        label_file = open(os.path.join(self.label_path, "%s.txt" %frame_id)) 
+        sample_token = list(self.dt_results.keys())[idx]
+        ego_pose_token, calib_token  = self.get_egopose_calib_token(sample_token)
+        sample_annotation = self._helper.get_annotations_for_sample(sample_token)
+        calib_data = self._nuscenes.get('calibrated_sensor', calib_token)
+        ego_data = self._nuscenes.get('ego_pose', ego_pose_token)
 
-        for line in label_file.readlines():  
-            attributes = line.split(" ")   
-            if attributes[0] != 'Car':    # 只针对Car类型增加噪声
+        # 对sample中的每个annotation进行坐标变换(global -> lidar)
+        for annotation in sample_annotation:
+            if 'vehicle' not in annotation['category_name']:    # 只针对vehicle类型增加噪声
                 continue
             if np.random.choice([0, 1], p=[1 - drop, drop]):    # 按概率进行筛选模拟FN
                 continue
 
-            cam_x, cam_y, cam_z = attributes[11:14]
-            x = float(cam_z)
-            y = - float(cam_x)
-            log_l = np.log(float(attributes[9]))
-            log_w = np.log(float(attributes[10]))
-            cos_t, sin_t = np.cos(float(attributes[14])), np.sin(float(attributes[14]))
+            anno_token = annotation['token']
+            ann = self._nuscenes.get('sample_annotation', anno_token)
+            center, yaw = self.transform_gobal2metric(ann['translation'], ann['rotation'], calib_data, ego_data)
+    
+            x = center[1]
+            y = - center[0]
+            log_l = np.log(np.array(ann['size'])[1])
+            log_w = np.log(np.array(ann['size'])[0])
+            cos_t, sin_t = np.cos(yaw), np.sin(yaw)
 
             # Add Gaussian Noise
             x += self.GMM[0].sample(1)[0]
@@ -862,18 +738,30 @@ class BaselineCarlaDataset(DatasetBase):
 
         return multimodal_noise_list
 
+    def reg_target_transform(self, label_map):
+        '''
+        Inputs are numpy arrays (not tensors!)
+        :param label_map: [352 * 400 * 7] label tensor
+        :return: normalized regression map for all non_zero classification locations
+        '''
+        cls_map = label_map[..., 0]
+        reg_map = label_map[..., 1:]
+
+        index = np.nonzero(cls_map)
+        reg_map[index] = (reg_map[index] - self.target_mean)/self.target_std_dev
+
     def __getitem__(self, index):
         assert index <= self.__len__()
-        self.world_offset, self.world_scale = self.get_world_offset_and_scale(self.frame2town(self.test_frame[index]))      # carla不同map由不同offset和scale
 
         HD_map = self.get_HDmap(index)   # 此处index定义随意定义
         occupancy, occlusion = self.get_occupancy_and_occlusion(index)       # 实际的推理过程中，使用该方法 
+        # occupancy = self._preprocess_data[index]['occupancy']
+        # occlusion = self._preprocess_data[index]['occlusion']
+        # HD_map = self._preprocess_data[index]['HDmap']
 
-        # label_map, label_list, bev_bbox, future_waypoints, future_waypoints_st = self.get_label(index)
-        # bev_bbox = bev_bbox[:25] + [0,]*(25-len(bev_bbox)) # 将数量固定为5个bbox(5*5)，超出的截取，不足的补零
         label_map, label_list = self.get_only_detection_label(index)
 
-        gt_map, gt_list = self.get_pass_gt_info(index)
+        gt_map, gt_list = self.get_gt_info(index)
 
         data_dict = {
             'occupancy': occupancy,
@@ -883,9 +771,6 @@ class BaselineCarlaDataset(DatasetBase):
             'label_list': label_list,
             'gt_map': gt_map,
             'gt_list': gt_list
-            # 'bev_bbox': bev_bbox,
-            # 'future_waypoints': future_waypoints,
-            # 'future_waypoints_st': future_waypoints_st
         }
 
         return data_dict
@@ -930,3 +815,35 @@ class BaselineCarlaDataset(DatasetBase):
 
         ret['batch_size'] = batch_size
         return ret
+    
+    
+    def get_yiming_need(self, idx, corner):
+        sample_token = list(self.dt_results.keys())[idx]
+        ego_pose_token, calib_token  = self.get_egopose_calib_token(sample_token)
+        calib_data = self._nuscenes.get('calibrated_sensor', calib_token)
+        ego_data = self._nuscenes.get('ego_pose', ego_pose_token)
+
+        x = corner[:, 0].sum() / 4
+        y = corner[:, 1].sum() / 4
+        center = np.array([-y, x, 0])
+
+        yaw = np.arctan2(corner[3][0] - corner[0][0], -(corner[3][1] - corner[0][1]))
+        rotation = Quaternion(axis=[0, 0, 1], angle=yaw)
+
+        quaternion = Quaternion(calib_data['rotation'])
+        center = np.dot(quaternion.rotation_matrix, center)
+        center += np.array(calib_data['translation'])
+        rotation = quaternion * rotation
+        quaternion = Quaternion(ego_data['rotation'])
+        center = np.dot(quaternion.rotation_matrix, center)
+        center += np.array(ego_data['translation'])
+        rotation = quaternion * rotation
+
+        rotation = rotation.elements.tolist()
+        translation = center.tolist()
+
+        l = two_points_distance(corner[0], corner[3])
+        w = two_points_distance(corner[0], corner[1])
+        size = [w, l, 1.5]
+
+        return sample_token, translation, size, rotation

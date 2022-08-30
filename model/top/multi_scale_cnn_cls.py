@@ -110,22 +110,38 @@ class MMD(nn.Module):
         bs = real.shape[0]
         mask = (real[:,0,...] > 0)
 
+        all_x = []
+        all_y = []
         mmd = 0.0
         for i in range(bs):
-            x = real[i, ..., mask[i]]
-            y = gen[i, ..., mask[i]]
+            b_x = real[i, ..., mask[i]]
+            b_y = gen[i, ..., mask[i]]
 
-            for layer in range(x.shape[0] - 1):   # 针对除了cls外的每一层参数分别计算mmd，最后相加
-                X = x[layer + 1].unsqueeze(0)
-                Y = y[layer + 1].unsqueeze(0)
-                x_kernal = self.compute_kernel(X, X)
-                y_kernal = self.compute_kernel(Y, Y)
-                xy_kernal = self.compute_kernel(X, Y)
+            all_x.append(b_x)
+            all_y.append(b_y)
 
-                layer_mmd = y_kernal.mean() - 2 * xy_kernal.mean() + x_kernal.mean()
-                if math.isnan(layer_mmd):
-                    continue
-                mmd += layer_mmd
+        all_x = torch.cat(all_x, dim=-1)
+        all_y = torch.cat(all_y, dim=1)
+        x_mean, x_std = all_x.mean(axis=1), all_x.std(axis=1)
+        y_mean, y_std = all_y.mean(axis=1), all_y.std(axis=1)
+
+        for layer in range(all_x.shape[0] - 1):   # 针对除了cls外的每一层参数分别计算mmd，最后相加
+            X = (all_x[layer + 1].unsqueeze(0) - x_mean[layer + 1]) / x_std[layer + 1]
+            Y = (all_y[layer + 1].unsqueeze(0) - y_mean[layer + 1]) / y_std[layer + 1]
+
+            if x_std[layer + 1] == 0:
+                X = all_x[layer + 1].unsqueeze(0)
+            if y_std[layer + 1] == 0:
+                Y = all_y[layer + 1].unsqueeze(0)
+
+            x_kernal = self.compute_kernel(X, X)
+            y_kernal = self.compute_kernel(Y, Y)
+            xy_kernal = self.compute_kernel(X, Y)
+
+            layer_mmd = y_kernal.mean() - 2 * xy_kernal.mean() + x_kernal.mean()
+            if math.isnan(layer_mmd):
+                continue
+            mmd += layer_mmd
         return mmd
 
 class MultiScaleCNNCls(ModelBase):
@@ -133,10 +149,9 @@ class MultiScaleCNNCls(ModelBase):
         super(MultiScaleCNNCls, self).__init__()
         self.backbone = ModelFactory.ModelFactory.get_model(config['paras']['submodules']['backbone'])
         self.head = ModelFactory.ModelFactory.get_model(config['paras']['submodules']['head'])
+        self.cauculate_MMD = MMD()
         if config['paras']['submodules']['prediction']:
             self.prediction = ModelFactory.ModelFactory.get_model(config['paras']['submodules']['prediction'])
-        if config['paras']['submodules']['MMD']:
-            self.MMD = MMD()
         self.pos_encode = config['paras']['submodules']['position_encoding']
         
         self.geom = [-40, 40, 0.0, 70.4]
@@ -193,7 +208,7 @@ class MultiScaleCNNCls(ModelBase):
             pos_encoding = self.positionalencoding2d(64,352,400).unsqueeze(0).repeat(x.shape[0], 1, 1, 1).cuda()
             # pos_encoding = upnear(pos_encoding)
 
-            x = torch.concat((x, pos_encoding), dim=1)
+            x = torch.cat((x, pos_encoding), dim=1)
 
         if torch.is_tensor(self.backbone(x)): 
             features = self.backbone(x)

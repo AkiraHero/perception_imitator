@@ -1,0 +1,317 @@
+import os
+import sys
+sys.path.append(os.getcwd())
+import torch
+from torch.multiprocessing import Pool
+import numpy as np
+from tqdm import tqdm
+import time
+import random
+import pickle
+from factory.model_factory import ModelFactory
+from factory.dataset_factory import DatasetFactory
+from utils.config.Configuration import Configuration
+from utils.loss import CustomLoss, SmoothL1Loss
+from utils.postprocess import *
+from utils.visualize import get_bev, plot_bev, plot_label_map
+from collections import OrderedDict
+import matplotlib.pyplot as plt
+
+import warnings
+warnings.filterwarnings("ignore")
+
+def eval_one_sim_2_dt(model, loss_func, config, loader, image_id, device, iou_thred=0.5, plot=False, verbose=False):    # eval_one进行单帧结果生成与指标计算
+    data = loader.dataset[image_id]
+    
+    occupancy = torch.from_numpy(data['occupancy']).permute(2, 0, 1)
+    occlusion = torch.from_numpy(data['occlusion']).permute(2, 0, 1)
+    HDmap = torch.from_numpy(data['HDmap']).permute(2, 0, 1)
+
+    # get input
+    input = torch.cat((occupancy, occlusion, HDmap), dim=0).float().to(device)
+    # input = torch.cat((occupancy, occlusion), dim=0).float().to(device)
+
+    # get label
+    label_map, label_list = loader.dataset.get_only_detection_label(image_id)
+    label_map = torch.from_numpy(label_map).permute(2, 0, 1).unsqueeze_(0).to(device)
+
+    # Forward Detection
+    pred, features = model(input.unsqueeze(0))
+    loss, _, _, _, _ = loss_func(pred, label_map)
+    pred.squeeze_(0)
+    features.squeeze_(0)
+    cls_pred = pred[0, ...]
+
+    corners, scores = filter_pred(config, pred)
+    gt_boxes = np.array(label_list)
+    gt_match, pred_match, overlaps = compute_matches(gt_boxes,
+                                        corners, scores, iou_threshold=iou_thred)
+
+    num_gt = len(label_list)
+    num_pred = len(scores)
+
+    input_1 = torch.split(input, 1, dim=0)[0]     # [0]为occupancy，[1]为occlusion
+    input_np_1 = input_1.cpu().permute(1, 2, 0).numpy()
+    input_2 = torch.split(input, 1, dim=0)[1] 
+    input_np_2 = input_2.cpu().permute(1, 2, 0).numpy() 
+    pred_image = get_bev(input_np_2, corners)
+
+    if plot == True:
+        # Visualization
+        plot_bev(input_np_1, label_list, window_name='GT')
+        plot_bev(input_np_2, corners, window_name='Prediction1')
+        plot_bev(input_np_1, corners, window_name='Prediction2')
+        plot_label_map(cls_pred.cpu().numpy())
+
+    return num_gt, num_pred, scores, pred_image, pred_match, loss.item()
+
+def eval_dataset_sim_2_dt(config, model, loss_func, loader, device, iou_thred, e_range='all'):
+    loss_sum = 0
+    total_num = len(loader.dataset)
+
+    img_list = range(total_num)
+    if e_range != 'all':
+        e_range = min(e_range, len(loader.dataset))
+        img_list = random.sample(img_list, e_range)
+
+    log_img_list = random.sample(img_list, 5)
+
+    gts = 0
+    preds = 0
+    all_scores = []
+    all_matches = []
+    log_images = []
+
+    with torch.no_grad():
+        for image_id in tqdm(img_list):
+            #tic = time.time()
+            num_gt, num_pred, scores, pred_image, pred_match, loss = \
+                eval_one_sim_2_dt(model, loss_func, config, loader, image_id, device, iou_thred=iou_thred, plot=False)
+            gts += num_gt
+            preds += num_pred
+            loss_sum += loss
+            all_scores.extend(list(scores))
+            all_matches.extend(list(pred_match))
+
+            if image_id in log_img_list:
+                log_images.append(pred_image)
+            #print(time.time() - tic)
+            
+    all_scores = np.array(all_scores)
+    all_matches = np.array(all_matches)
+    sort_ids = np.argsort(all_scores)
+    all_matches = all_matches[sort_ids[::-1]]
+
+    metrics = {}
+    AP, precisions, recalls, precision, recall = compute_ap(all_matches, gts, preds)
+    metrics['AP'] = AP
+    metrics['Precision'] = precision
+    metrics['Recall'] = recall
+    metrics['loss'] = loss_sum / total_num
+
+    return metrics, precisions, recalls, log_images
+
+
+def eval_one_sim_2_gt(model, loss_func, config, loader, image_id, device, iou_thred=0.5, plot=False, verbose=False):    # eval_one进行单帧结果生成与指标计算
+    data = loader.dataset[image_id]
+    
+    occupancy = torch.from_numpy(data['occupancy']).permute(2, 0, 1)
+    occlusion = torch.from_numpy(data['occlusion']).permute(2, 0, 1)
+    HDmap = torch.from_numpy(data['HDmap']).permute(2, 0, 1)
+
+    # get input
+    input = torch.cat((occupancy, occlusion, HDmap), dim=0).float().to(device)
+    # input = torch.cat((occupancy, occlusion), dim=0).float().to(device)
+
+    # get label
+    gt_map, gt_list = loader.dataset.get_gt_info(image_id)
+    gt_map = torch.from_numpy(gt_map).permute(2, 0, 1).unsqueeze_(0).to(device)
+
+    # Forward Detection
+    pred, features = model(input.unsqueeze(0))
+    loss, _, _, _, _ = loss_func(pred, gt_map)
+    pred.squeeze_(0)
+    features.squeeze_(0)
+    cls_pred = pred[0, ...]
+
+    corners, scores = filter_pred(config, pred)
+    gt_boxes = np.array(gt_list)
+    gt_match, pred_match, overlaps = compute_matches(gt_boxes,
+                                        corners, scores, iou_threshold=iou_thred)
+
+    num_gt = len(gt_list)
+    num_pred = len(scores)
+
+    input_1 = torch.split(input, 1, dim=0)[0]     # [0]为occupancy，[1]为occlusion
+    input_np_1 = input_1.cpu().permute(1, 2, 0).numpy()
+    input_2 = torch.split(input, 1, dim=0)[1] 
+    input_np_2 = input_2.cpu().permute(1, 2, 0).numpy() 
+    pred_image = get_bev(input_np_2, corners)
+
+    if plot == True:
+        # Visualization
+        plot_bev(input_np_1, gt_list, window_name='GT')
+        plot_bev(input_np_2, corners, window_name='Prediction1')
+        plot_bev(input_np_1, corners, window_name='Prediction2')
+        plot_label_map(cls_pred.cpu().numpy())
+
+    return num_gt, num_pred, scores, pred_image, pred_match, loss.item()
+
+def eval_dataset_sim_2_gt(config, model, loss_func, loader, device, iou_thred, e_range='all'):
+    loss_sum = 0
+    total_num = len(loader.dataset)
+
+    img_list = range(total_num)
+    if e_range != 'all':
+        e_range = min(e_range, len(loader.dataset))
+        img_list = random.sample(img_list, e_range)
+
+    log_img_list = random.sample(img_list, 5)
+
+    gts = 0
+    preds = 0
+    all_scores = []
+    all_matches = []
+    log_images = []
+
+    with torch.no_grad():
+        for image_id in tqdm(img_list):
+            #tic = time.time()
+            num_gt, num_pred, scores, pred_image, pred_match, loss = \
+                eval_one_sim_2_gt(model, loss_func, config, loader, image_id, device, iou_thred=iou_thred, plot=False)
+            gts += num_gt
+            preds += num_pred
+            loss_sum += loss
+            all_scores.extend(list(scores))
+            all_matches.extend(list(pred_match))
+
+            if image_id in log_img_list:
+                log_images.append(pred_image)
+            #print(time.time() - tic)
+            
+    all_scores = np.array(all_scores)
+    all_matches = np.array(all_matches)
+    sort_ids = np.argsort(all_scores)
+    all_matches = all_matches[sort_ids[::-1]]
+
+    metrics = {}
+    AP, precisions, recalls, precision, recall = compute_ap(all_matches, gts, preds)
+    metrics['AP'] = AP
+    metrics['Precision'] = precision
+    metrics['Recall'] = recall
+    metrics['loss'] = loss_sum / total_num
+
+    return metrics, precisions, recalls, log_images
+
+
+def eval_one_gt_2_dt(model, loss_func, config, loader, image_id, device, iou_thred=0.5, plot=False, verbose=False):    # eval_one进行单帧结果生成与指标计算
+    # get label
+    label_map, label_list = loader.dataset.get_only_detection_label(image_id)
+    label_map = torch.from_numpy(label_map).permute(2, 0, 1).unsqueeze_(0).to(device)
+
+    gt_map, gt_list = loader.dataset.get_gt_info(image_id)
+    gt_map = torch.from_numpy(gt_map).permute(2, 0, 1).unsqueeze_(0).to(device)
+
+    loss, _, _, _, _ = loss_func(label_map, gt_map)
+
+    corners = np.array(gt_list)
+    scores = np.ones(len(gt_list))
+
+    gt_boxes = np.array(label_list)
+    gt_match, pred_match, overlaps = compute_matches(gt_boxes,
+                                        corners, scores, iou_threshold=iou_thred)
+
+    num_gt = len(label_list)
+    num_pred = len(scores)
+    pred_image = None
+
+    return num_gt, num_pred, scores, pred_image, pred_match, loss.item()
+
+def eval_dataset_gt_2_dt(config, model, loss_func, loader, device, iou_thred, e_range='all'):
+    loss_sum = 0
+    total_num = len(loader.dataset)
+
+    img_list = range(total_num)
+    if e_range != 'all':
+        e_range = min(e_range, len(loader.dataset))
+        img_list = random.sample(img_list, e_range)
+
+    log_img_list = random.sample(img_list, 5)
+
+    gts = 0
+    preds = 0
+    all_scores = []
+    all_matches = []
+    log_images = []
+
+    with torch.no_grad():
+        for image_id in tqdm(img_list):
+            #tic = time.time()
+            num_gt, num_pred, scores, pred_image, pred_match, loss = \
+                eval_one_gt_2_dt(model, loss_func, config, loader, image_id, device, iou_thred=iou_thred, plot=False)
+            gts += num_gt
+            preds += num_pred
+            loss_sum += loss
+            all_scores.extend(list(scores))
+            all_matches.extend(list(pred_match))
+
+            if image_id in log_img_list:
+                log_images.append(pred_image)
+            #print(time.time() - tic)
+            
+    all_scores = np.array(all_scores)
+    all_matches = np.array(all_matches)
+    sort_ids = np.argsort(all_scores)
+    all_matches = all_matches[sort_ids[::-1]]
+
+    metrics = {}
+    AP, precisions, recalls, precision, recall = compute_ap(all_matches, gts, preds)
+    metrics['AP'] = AP
+    metrics['Precision'] = precision
+    metrics['Recall'] = recall
+    metrics['loss'] = loss_sum / total_num
+
+    return metrics, precisions, recalls, log_images
+
+
+if __name__ == '__main__':
+    # manage config
+    config = Configuration()
+    args = config.get_shell_args_train()
+    args.for_train = False
+    args.shuffle = False
+    config.load_config(args.cfg_dir)
+    config.overwrite_config_by_shell_args(args)
+
+    # instantiating all modules by non-singleton factory
+    model = ModelFactory.get_model(config.model_config)
+    perception_loss_func = CustomLoss(config.training_config['loss_function'])
+    prediction_loss_func = SmoothL1Loss()
+
+    paras = torch.load("./output/carla_cp_final.pt")
+    model.load_model_paras(paras)
+    model.set_decode(True)
+    model.set_eval()
+    model.set_device("cuda:0")
+
+    dataset = DatasetFactory.get_dataset(config.dataset_config)
+    data_loader = dataset.get_data_loader()
+
+    with torch.no_grad():
+        # Eval Annotaion to DT
+        metrics, precisions, recalls, log_images = eval_dataset_gt_2_dt(config, model, perception_loss_func, data_loader, device="cuda", iou_thred=0.5, e_range='all')
+        print("gt->dt:", metrics)
+
+        metrics, precisions, recalls, log_images = eval_dataset_gt_2_dt(config, model, perception_loss_func, data_loader, device="cuda", iou_thred=0.7, e_range='all')
+        print("gt->dt:", metrics)
+
+        # Eval Sim to DT
+        metrics, precisions, recalls, log_images = eval_dataset_sim_2_dt(config, model, perception_loss_func, data_loader, device="cuda", iou_thred=0.5, e_range='all')
+        print("sim->dt:", metrics)
+
+        metrics, precisions, recalls, log_images = eval_dataset_sim_2_dt(config, model, perception_loss_func, data_loader, device="cuda", iou_thred=0.7, e_range='all')
+        print("sim->dt:", metrics)
+
+        # # Eval Sim to GT
+        # metrics, precisions, recalls, log_images = eval_dataset_sim_2_gt(config, model, perception_loss_func, data_loader, device="cuda", iou_thred=0.5, e_range='all')
+        # print("sim->gt:", metrics)
