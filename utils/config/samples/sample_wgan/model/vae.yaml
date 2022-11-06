@@ -1,7 +1,0 @@
-name: vae
-paras:
-  latent_distribution: Gaussian
-  submodules:
-    encoder:
-      config_file: model/cnn_for_vae.yaml
-      model_class: CNN

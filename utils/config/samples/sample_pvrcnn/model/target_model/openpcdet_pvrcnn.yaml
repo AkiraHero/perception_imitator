@@ -1,3 +1,0 @@
-name: OpenPCDetPVRCNN
-paras:
-    config_file: model/target_model/_pvrcnn_config.yaml

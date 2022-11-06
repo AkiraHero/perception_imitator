@@ -1,9 +1,0 @@
-name: VAEGAN
-paras:
-  submodules:
-    discriminator:
-      config_file: model/GT_encode_discriminator.yaml
-      model_class: GTEncodeDiscriminator
-    generator:
-      config_file: model/vae.yaml
-      model_class: VAEAllFPExplicit

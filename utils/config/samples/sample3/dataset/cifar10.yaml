@@ -1,7 +1,0 @@
-dataset_class: Cifar10Dataset
-paras:
-  batch_size: 1024
-  data_root: /home/xlju/Project/ModelSimulator/data
-  for_train: true
-  num_workers: 4
-  shuffle: true

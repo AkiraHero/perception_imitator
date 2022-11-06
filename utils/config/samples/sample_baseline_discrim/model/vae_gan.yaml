@@ -1,9 +1,0 @@
-name: VAEGAN
-paras:
-  submodules:
-    generator:
-      config_file: model/multi_scale_cnn_cls.yaml
-      model_class: MultiScaleCNNCls
-    discriminator:
-      config_file: model/mlp.yaml
-      model_class: MLP

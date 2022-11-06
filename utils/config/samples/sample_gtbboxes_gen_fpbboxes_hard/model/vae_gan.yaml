@@ -1,9 +1,0 @@
-name: VAEGAN
-paras:
-  submodules:
-    discriminator:
-      config_file: model/mlp.yaml
-      model_class: MLP
-    generator:
-      config_file: model/vae.yaml
-      model_class: VAEAllFPExplicit

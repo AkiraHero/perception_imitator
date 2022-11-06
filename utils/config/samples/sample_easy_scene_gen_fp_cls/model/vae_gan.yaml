@@ -1,9 +1,0 @@
-name: VAEGAN
-paras:
-  submodules:
-    discriminator:
-      config_file: model/discriminator/cnn.yaml
-      model_class: CNN
-    generator:
-      config_file: model/generator/vae.yaml
-      model_class: VAEForCNN

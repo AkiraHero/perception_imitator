@@ -1,6 +1,0 @@
-dataset_class: BoxOnlyDataset
-paras:
-  batch_size: 2048
-  data_root: ../data/kitti
-  for_train: true
-  num_workers: 4

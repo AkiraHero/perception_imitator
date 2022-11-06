@@ -1,7 +1,0 @@
-name: vae
-paras:
-  latent_distribution: Gaussian
-  submodules:
-    decoder:
-      config_file: model/simulator_model/generator/mlp_decoder.yaml
-      model_class: MLP

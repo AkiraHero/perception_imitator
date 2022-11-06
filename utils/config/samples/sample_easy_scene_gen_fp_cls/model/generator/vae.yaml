@@ -1,7 +1,0 @@
-name: vae_for_cnn
-paras:
-  latent_distribution: Gaussian
-  submodules:
-    encoder:
-      config_file: model/generator/multi_scale_cnn.yaml
-      model_class: MultiScaleCNN
